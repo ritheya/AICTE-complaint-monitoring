@@ -1,0 +1,15 @@
+fastapi>=0.110.0
+uvicorn>=0.28.0
+sqlalchemy>=2.0.28
+pydantic>=2.6.4
+pydantic-settings>=2.2.1
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.1
+python-jose[cryptography]>=3.3.0
+rapidfuzz>=3.6.1
+scikit-learn>=1.4.1.post1
+numpy>=1.26.4
+apscheduler>=3.10.4
+pytest>=8.1.1
+python-multipart>=0.0.9
+requests>=2.31.0
