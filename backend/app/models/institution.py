@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Float, JSON, DateTime
 from sqlalchemy.orm import relationship
 from backend.app.database import Base
+from backend.app.utils import utc_now
 
 
 class Institution(Base):
@@ -23,7 +23,7 @@ class Institution(Base):
     institution_type = Column(String(100), nullable=False)  # Engineering & Tech, Management, Pharmacy, etc.
     risk_score = Column(Float, default=0.0, index=True, nullable=False)
     risk_breakdown = Column(JSON, default=dict, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     # Relational associations
     complaints = relationship("Complaint", back_populates="institution", cascade="all, delete-orphan")

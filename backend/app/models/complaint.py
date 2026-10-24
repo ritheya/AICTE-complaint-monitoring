@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, Float, JSON, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.database import Base
+from backend.app.utils import utc_now
 
 
 class Complaint(Base):
@@ -24,7 +24,7 @@ class Complaint(Base):
     assigned_officer_id = Column(Integer, ForeignKey("officers.id", ondelete="SET NULL"), nullable=True, index=True)
     last_action = Column(String(255), default="Grievance Registered", nullable=False)
     next_action = Column(String(255), default="Initial Scrutiny", nullable=False)
-    last_action_date = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_action_date = Column(DateTime, default=utc_now, nullable=False)
     expected_disposal_date = Column(DateTime, nullable=False, index=True)
     priority = Column(String(20), default="Medium", nullable=False, index=True)  # Low, Medium, High, Critical
     is_overdue = Column(Boolean, default=False, nullable=False, index=True)
@@ -32,7 +32,7 @@ class Complaint(Base):
     match_confidence = Column(Float, nullable=True)
     needs_institution_review = Column(Boolean, default=False, nullable=False, index=True)
     candidate_institutions = Column(JSON, default=list, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     # Relational associations
     institution = relationship("Institution", back_populates="complaints")

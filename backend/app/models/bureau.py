@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.database import Base
+from backend.app.utils import utc_now
 
 
 class Bureau(Base):
@@ -38,7 +38,7 @@ class Officer(Base):
     bureau_id = Column(Integer, ForeignKey("bureaus.id", ondelete="SET NULL"), nullable=True)
     region = Column(String(50), nullable=True)  # Populated for Regional Officers
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     # Relational associations
     bureau = relationship("Bureau", back_populates="officers")

@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Float, JSON, DateTime, ForeignKey, CheckConstraint, UniqueConstraint
 from sqlalchemy.orm import relationship
 from backend.app.database import Base
+from backend.app.utils import utc_now
 
 
 class CaseLink(Base):
@@ -21,15 +21,16 @@ class CaseLink(Base):
     case_b_id = Column(Integer, ForeignKey("complaints.id", ondelete="CASCADE"), nullable=False, index=True)
     institution_id = Column(Integer, ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False, index=True)
     similarity_score = Column(Float, nullable=False)
+    signals = Column(JSON, default=dict, nullable=False)
     reasons = Column(JSON, default=list, nullable=False)
-    suggested_lead_bureau_id = Column(Integer, ForeignKey("bureaus.id", ondelete="RESTRICT"), nullable=False)
-    lead_suggestion_rule = Column(String(255), nullable=False)
+    suggested_lead_bureau_id = Column(Integer, ForeignKey("bureaus.id", ondelete="RESTRICT"), nullable=True)
+    lead_suggestion_rule = Column(String(255), nullable=True)
     final_lead_bureau_id = Column(Integer, ForeignKey("bureaus.id", ondelete="SET NULL"), nullable=True)
     status = Column(String(30), default="suggested", nullable=False, index=True)  # suggested, approved, rejected, needs_discussion, related_only
     decided_by_id = Column(Integer, ForeignKey("officers.id", ondelete="SET NULL"), nullable=True)
     decided_at = Column(DateTime, nullable=True)
     decision_remarks = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     # Relational associations
     case_a = relationship("Complaint", foreign_keys=[case_a_id], back_populates="links_as_a")

@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.database import Base
+from backend.app.utils import utc_now
 
 
 class ActionHistory(Base):
@@ -13,7 +13,7 @@ class ActionHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     complaint_id = Column(Integer, ForeignKey("complaints.id", ondelete="CASCADE"), nullable=False, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(DateTime, default=utc_now, nullable=False, index=True)
     actor_name = Column(String(100), nullable=False)
     actor_role = Column(String(50), nullable=False)
     bureau_code = Column(String(10), nullable=False)

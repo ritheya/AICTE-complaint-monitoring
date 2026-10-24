@@ -590,19 +590,23 @@ Every institution profile displays an itemized "Why this score" breakdown showin
 ## 10. The Six Scripted Demo Scenarios (Verified Math & Pass Criteria)
 
 ### Scenario 1: Strong Inter-Bureau Complaint Overlap
-* **Context**: A technical institute in Pune is facing both a student fee dispute in PGRC and an affiliation compliance investigation in RB.
+> **Note on Scenario 1 Data**: The descriptions below represent constructed synthetic demo data designed to evaluate gated multi-signal engine scoring and deterministic lead-bureau routing. They should not be interpreted as empirical proof of open-domain semantic paraphrase handling.
+
+* **Context**: A technical institute in Pune is facing both a student fee dispute in PGRC and a regulatory show-cause inquiry in RB.
 * **Input Data**:
-  - *Case A (PGRC)*: Case ID `AICTE/PGRC/2026/00101`, Institution: "ABC Inst. of Tech., Pune" (Permanent ID: `1-1099238411`), Category: `Fee Related`, Description: *"College administration illegally collected Rs 1.5 Lakhs unapproved development fees and capitation fee under threat of withholding hall tickets and examination admit card."*, Date Received: `2026-09-10`.
-  - *Case B (RB)*: Case ID `AICTE/RB/2026/00204`, Institution: "ABC Institute of Technology, Pune" (Permanent ID: `1-1099238411`), Category: `Approval/Affiliation Compliance`, Description: *"Inspection scrutiny revealed unauthorized capitation fee collection, unapproved fee hikes, and severe faculty shortage violating AICTE affiliation norms."*, Date Received: `2026-09-18`.
+  - *Case A (PGRC)*: Case ID `AICTE/PGRC/2026/00101`, Institution: "ABC Inst. of Tech., Pune" (Permanent ID: `1-1099238411`), Category: `Fee Related`, Description: *"Student grievance against college for collecting Rs 25,000 unapproved caution money deposit and extra examination fees without receipt, refusing refund, and withholding hall ticket admit card."*, Date Received: `2026-09-15`.
+  - *Case B (RB)*: Case ID `AICTE/RB/2026/00204`, Institution: "ABC Institute of Technology, Pune" (Permanent ID: `1-1099238411`), Category: `Approval/Affiliation Compliance`, Description: *"Show-cause notice to college regarding unauthorized collection of Rs 25,000 caution money deposit, charging extra examination fees without receipt, non-refund, and withholding student hall ticket admit card."*, Date Received: `2026-09-18`.
+* **Gating Conditions**:
+  - Same Institution: Passed (Both resolved to `1-1099238411`)
+  - Different Bureaus: Passed (PGRC vs. RB)
+  - Both Cases Open: Passed (Statuses: Under Process)
 * **Mathematical Calculation**:
-  - Same Institution: $S_{\text{inst}} = 1.0 \rightarrow 0.35 \times 1.0 = 0.35$
-  - Different Bureaus: $S_{\text{bureau}} = 1.0 \rightarrow 0.15 \times 1.0 = 0.15$
-  - Text Similarity: Cosine similarity on shared terms (*capitation*, *unapproved*, *fee*, *collection*, *withholding*) $= 0.76 \rightarrow 0.25 \times 0.76 = 0.190$
-  - Category Relationship: `Fee Related` is mapped to `Approval/Affiliation Compliance` ($S_{\text{cat}} = 0.60$) $\rightarrow 0.15 \times 0.60 = 0.090$
-  - Date Proximity: $\Delta d = 8$ days $\rightarrow S_{\text{date}} = 1.0 - \frac{8}{180} = 0.955 \rightarrow 0.10 \times 0.955 = 0.096$
-  - **Total Overlap Score**: $0.35 + 0.15 + 0.190 + 0.090 + 0.096 = \mathbf{0.876}$ ($\ge 0.85$)
-* **Rules Fired**: `RULE_STATUTORY_REGULATORY` (RB leads due to affiliation compliance inspection).
-* **Expected Outcome**: **Strong Overlap Alert** (Red badge, score 88%), Suggested Lead Bureau: **RB**, Reason: *"Same Permanent ID (1-1099238411); Active across RB and PGRC; High text similarity (76%); Related categories; Statutory compliance rule RB leads."*
+  - Text Similarity: Cosine similarity on concept-normalized phrasing $= 0.916 \rightarrow 0.50 \times 0.916 = 0.458$
+  - Category Relationship: Configurable relatedness value between `Fee Related` and `Approval/Affiliation Compliance` ($S_{\text{cat}} = 0.80$) $\rightarrow 0.30 \times 0.80 = 0.240$
+  - Date Proximity: $\Delta d = 3$ days $\rightarrow S_{\text{date}} = 1.0 - \frac{3}{180} = 0.983 \rightarrow 0.20 \times 0.983 = 0.197$
+  - **Total Overlap Score**: $0.458 + 0.240 + 0.197 = \mathbf{0.895}$ ($\ge 0.88$)
+* **Rules Fired**: `RULE_STATUTORY_REGULATORY` (RB leads due to show-cause regulatory compliance scrutiny).
+* **Expected Outcome**: **Strong Overlap Alert** (Red badge, score 89%), Suggested Lead Bureau: **RB**, Reason: *"Same Permanent ID (1-1099238411); Active across distinct bureaus (PGRC and RB); High text similarity (91.6%); Related categories (80%); Statutory regulatory show-cause rule RB leads."*
 
 ### Scenario 2: False Institution Match Avoidance
 * **Context**: Two separate institutions with very similar names located in different states.

@@ -13,6 +13,7 @@ from backend.app.database import engine, Base, SessionLocal
 from backend.app.models.institution import Institution
 from backend.app.models.bureau import Bureau, Officer
 from backend.app.models.complaint import Complaint
+from backend.app.utils import utc_now
 from backend.app.models.action_history import ActionHistory
 from backend.app.models.case_link import CaseLink
 from backend.app.models.alert import Alert
@@ -247,7 +248,43 @@ def seed_database():
         db.add(inst_sunrise)
         institutions.append(inst_sunrise)
 
-        # Generate remaining ~143 institutions to reach exactly 150
+        # Scenario 1b Fixture: Global Institute of Technology, Mumbai (Review Band Soft Alert)
+        inst_global_mumbai = Institution(
+            permanent_id="1-1099551122",
+            name="Global Institute of Technology",
+            normalized_name="global institute of technology",
+            aliases=["GIT Mumbai", "Global Tech"],
+            address="Kurla-Andheri Road, Sakinaka, Mumbai",
+            city="Mumbai",
+            state="Maharashtra",
+            region="West",
+            pincode="400072",
+            institution_type="Engineering & Technology",
+            risk_score=42.0,
+            risk_breakdown={"complaint_volume": 12.0, "pending_ratio": 10.0, "severity": 10.0, "repeat_categories": 5.0, "unresolved_overlaps": 5.0}
+        )
+        db.add(inst_global_mumbai)
+        institutions.append(inst_global_mumbai)
+
+        # Scenario 1c Fixture: Imperial College of Engineering, Chennai (Negative Case - No Alert)
+        inst_imperial_chennai = Institution(
+            permanent_id="1-1099553344",
+            name="Imperial College of Engineering",
+            normalized_name="imperial college of engineering",
+            aliases=["ICE Chennai", "Imperial Engg"],
+            address="OMR IT Expressway, Sholinganallur, Chennai",
+            city="Chennai",
+            state="Tamil Nadu",
+            region="South",
+            pincode="600119",
+            institution_type="Engineering & Technology",
+            risk_score=20.0,
+            risk_breakdown={"complaint_volume": 6.0, "pending_ratio": 6.0, "severity": 4.0, "repeat_categories": 0.0, "unresolved_overlaps": 0.0}
+        )
+        db.add(inst_imperial_chennai)
+        institutions.append(inst_imperial_chennai)
+
+        # Generate remaining ~141 institutions to reach exactly 150
         random.seed(42)
         perm_counter = 1099500000
         while len(institutions) < 150:
@@ -284,26 +321,26 @@ def seed_database():
         # 5. Seed Scripted Complaints for Demo Scenarios
         # ---------------------------------------------------------
         complaints = []
-        now = datetime.utcnow()
+        now = utc_now()
 
         # SCENARIO 1: Strong Overlap (ABC Inst. of Tech, Pune)
-        # Case A: PGRC Fee Grievance
+        # Case A: PGRC Fee Grievance (Student voice)
         case_1a = Complaint(
             case_id="AICTE/PGRC/2026/00101",
             institution_id=inst_abc_pune.id,
             raw_institution_name="ABC Inst. of Tech., Pune",
             source="Portal",
             category="Fee Related",
-            description="College administration illegally collected Rs 1.5 Lakhs unapproved development fees and capitation fee under threat of withholding hall tickets and semester examination admit card.",
+            description="Student grievance against college for collecting Rs 25,000 unapproved caution money deposit and extra examination fees without receipt, refusing refund, and withholding hall ticket admit card.",
             complainant_type="Student",
-            date_received=now - timedelta(days=40),
+            date_received=now - timedelta(days=33),
             status="Under Process",
             assigned_bureau_id=bureau_map["PGRC"].id,
             assigned_officer_id=officer_map["pgrc.officer@aicte.gov.in"].id,
             last_action="Notice dispatched to Principal seeking fee breakdown",
             next_action="Awaiting institutional explanation",
             last_action_date=now - timedelta(days=25),
-            expected_disposal_date=now - timedelta(days=10),
+            expected_disposal_date=now - timedelta(days=6),
             priority="High",
             is_overdue=True,
             is_escalated=False,
@@ -315,25 +352,25 @@ def seed_database():
         db.flush()
         complaints.append(case_1a)
 
-        # Case B: RB Regulatory Case
+        # Case B: RB Regulatory Case (Official show-cause notice voice)
         case_1b = Complaint(
             case_id="AICTE/RB/2026/00204",
             institution_id=inst_abc_pune.id,
             raw_institution_name="ABC Institute of Technology, Pune",
             source="Letter",
             category="Approval/Affiliation Compliance",
-            description="Inspection scrutiny revealed unauthorized capitation fee collection, unapproved fee hikes, and severe faculty shortage violating AICTE affiliation norms.",
+            description="Show-cause notice to college regarding unauthorized collection of Rs 25,000 caution money deposit, charging extra examination fees without receipt, non-refund, and withholding student hall ticket admit card.",
             complainant_type="Faculty",
-            date_received=now - timedelta(days=32),
+            date_received=now - timedelta(days=30),
             status="Under Process",
             assigned_bureau_id=bureau_map["RB"].id,
             assigned_officer_id=officer_map["rb.officer@aicte.gov.in"].id,
             last_action="Inspection report submitted by Expert Committee",
-            next_action="Issue Show-Cause Notice",
+            next_action="Review response to Show-Cause Notice",
             last_action_date=now - timedelta(days=15),
-            expected_disposal_date=now - timedelta(days=2),
+            expected_disposal_date=now,
             priority="High",
-            is_overdue=True,
+            is_overdue=False,
             is_escalated=False,
             match_confidence=1.0,
             needs_institution_review=False,
@@ -345,27 +382,154 @@ def seed_database():
 
         # Action history for Scenario 1 cases
         db.add(ActionHistory(complaint_id=case_1a.id, timestamp=case_1a.date_received, actor_name="SYSTEM", actor_role="Intake Portal", bureau_code="PGRC", action_type="received", remarks="Complaint registered via student portal", details={"source": "Portal"}))
-        db.add(ActionHistory(complaint_id=case_1a.id, timestamp=now - timedelta(days=38), actor_name="Ms. Sunita Patil", actor_role="PGRC Officer", bureau_code="PGRC", action_type="assigned", remarks="Assigned to PGRC Desk 2", details={}))
-        db.add(ActionHistory(complaint_id=case_1b.id, timestamp=case_1b.date_received, actor_name="SYSTEM", actor_role="Intake Bureau", bureau_code="RB", action_type="received", remarks="Inspection committee referral received", details={"source": "Letter"}))
+        db.add(ActionHistory(complaint_id=case_1a.id, timestamp=now - timedelta(days=25), actor_name="Ms. Sunita Patil", actor_role="PGRC Officer", bureau_code="PGRC", action_type="assigned", remarks="Assigned to PGRC Desk 2", details={}))
+        db.add(ActionHistory(complaint_id=case_1b.id, timestamp=case_1b.date_received, actor_name="SYSTEM", actor_role="Regulation Bureau", bureau_code="RB", action_type="received", remarks="Show-cause notice registered in RB", details={"source": "Letter"}))
 
         # Seed Overlap Record for Scenario 1
         case_link_1 = CaseLink(
             case_a_id=case_1a.id,
             case_b_id=case_1b.id,
             institution_id=inst_abc_pune.id,
-            similarity_score=0.88,
+            similarity_score=0.89,
             reasons=[
                 "Same AICTE Permanent ID (1-1099238411)",
-                "Both cases active across different bureaus (PGRC and RB)",
-                "High text similarity (76%) regarding capitation fee and unapproved levies",
+                "Active across different bureaus (PGRC and RB)",
+                "High text similarity on Rs 25,000 caution money, unapproved exam charges, and admit card withholding",
                 "Related categories: Fee Related and Approval/Affiliation Compliance",
-                "Date proximity: Filed within 8 days of each other"
+                "Date proximity: Filed within 3 days of each other"
             ],
             suggested_lead_bureau_id=bureau_map["RB"].id,
-            lead_suggestion_rule="RULE_STATUTORY_REGULATORY: Statutory/Affiliation scrutiny takes legal precedence over grievance redressal -> RB Leads",
+            lead_suggestion_rule="RULE_STATUTORY_REGULATORY: Show-cause notice / statutory compliance inquiry in RB takes precedence -> RB Leads",
             status="suggested"
         )
         db.add(case_link_1)
+
+        # SCENARIO 1b: Soft Overlap in Review Band (Global Institute of Technology, Mumbai)
+        case_1b_a = Complaint(
+            case_id="AICTE/PGRC/2026/00105",
+            institution_id=inst_global_mumbai.id,
+            raw_institution_name="Global Institute of Technology, Mumbai",
+            source="Portal",
+            category="Admission Irregularity",
+            description="Student complains that college management demanded Rs 50,000 extra donation fee and unapproved development charges for management quota seat admission without issuing cash receipt.",
+            complainant_type="Student",
+            date_received=now - timedelta(days=20),
+            status="Under Process",
+            assigned_bureau_id=bureau_map["PGRC"].id,
+            assigned_officer_id=officer_map["pgrc.officer@aicte.gov.in"].id,
+            last_action="Grievance logged",
+            next_action="Scrutiny of admission receipts",
+            last_action_date=now - timedelta(days=18),
+            expected_disposal_date=now + timedelta(days=10),
+            priority="Medium",
+            is_overdue=False,
+            is_escalated=False,
+            match_confidence=1.0,
+            needs_institution_review=False,
+            candidate_institutions=[]
+        )
+        case_1b_b = Complaint(
+            case_id="AICTE/AB/2026/00205",
+            institution_id=inst_global_mumbai.id,
+            raw_institution_name="Global Institute of Technology, Mumbai",
+            source="Letter",
+            category="Approval/Affiliation Compliance",
+            description="Inspection report regarding irregular admission seat allocation beyond sanctioned intake, collection of extra unapproved donation fee charges during quota admissions, and non-compliance with fee norms.",
+            complainant_type="Citizen",
+            date_received=now - timedelta(days=10),
+            status="Under Process",
+            assigned_bureau_id=bureau_map["AB"].id,
+            assigned_officer_id=officer_map["ab.officer@aicte.gov.in"].id,
+            last_action="Notice issued to verify admission lists against sanctioned intake",
+            next_action="Awaiting intake ledger",
+            last_action_date=now - timedelta(days=8),
+            expected_disposal_date=now + timedelta(days=18),
+            priority="Medium",
+            is_overdue=False,
+            is_escalated=False,
+            match_confidence=1.0,
+            needs_institution_review=False,
+            candidate_institutions=[]
+        )
+        db.add(case_1b_a)
+        db.add(case_1b_b)
+        db.flush()
+        complaints.extend([case_1b_a, case_1b_b])
+        db.add(ActionHistory(complaint_id=case_1b_a.id, timestamp=case_1b_a.date_received, actor_name="SYSTEM", actor_role="Intake Portal", bureau_code="PGRC", action_type="received", remarks="Complaint registered via portal", details={}))
+        db.add(ActionHistory(complaint_id=case_1b_b.id, timestamp=case_1b_b.date_received, actor_name="SYSTEM", actor_role="Approval Bureau", bureau_code="AB", action_type="received", remarks="Sanctioned intake scrutiny initiated", details={}))
+
+        # Seed Overlap Record for Scenario 1b (Review Band)
+        case_link_1b = CaseLink(
+            case_a_id=case_1b_a.id,
+            case_b_id=case_1b_b.id,
+            institution_id=inst_global_mumbai.id,
+            similarity_score=0.64,
+            reasons=[
+                "Same AICTE Permanent ID (1-1099551122)",
+                "Active across different bureaus (PGRC and AB)",
+                "Moderate text similarity on unapproved admission charges",
+                "Related categories: Admission Irregularity and Approval/Affiliation Compliance",
+                "Date proximity: Filed within 10 days of each other"
+            ],
+            suggested_lead_bureau_id=bureau_map["AB"].id,
+            lead_suggestion_rule="RULE_INFRASTRUCTURE_APPROVAL: Admission quota norm violations governed by Approval Bureau -> AB Leads",
+            status="suggested"
+        )
+        db.add(case_link_1b)
+
+        # SCENARIO 1c: Negative Case - Unrelated Complaints (Imperial College of Engineering, Chennai)
+        case_1c_a = Complaint(
+            case_id="AICTE/PGRC/2026/00109",
+            institution_id=inst_imperial_chennai.id,
+            raw_institution_name="Imperial College of Engineering, Chennai",
+            source="Portal",
+            category="Harassment/Student Welfare",
+            description="Hostel students complain regarding unhygienic mess food quality, water supply shortage in hostel blocks, and poor sanitation maintenance.",
+            complainant_type="Student",
+            date_received=now - timedelta(days=25),
+            status="Under Process",
+            assigned_bureau_id=bureau_map["PGRC"].id,
+            assigned_officer_id=officer_map["pgrc.officer@aicte.gov.in"].id,
+            last_action="Letter sent to hostel warden",
+            next_action="Follow-up on mess committee",
+            last_action_date=now - timedelta(days=15),
+            expected_disposal_date=now + timedelta(days=5),
+            priority="Medium",
+            is_overdue=False,
+            is_escalated=False,
+            match_confidence=1.0,
+            needs_institution_review=False,
+            candidate_institutions=[]
+        )
+        case_1c_b = Complaint(
+            case_id="AICTE/AB/2026/00209",
+            institution_id=inst_imperial_chennai.id,
+            raw_institution_name="Imperial College of Engineering, Chennai",
+            source="Letter",
+            category="Infrastructure",
+            description="Notice issued for deficiency in mechanical engineering workshop machinery and laboratory safety certifications.",
+            complainant_type="Citizen",
+            date_received=now - timedelta(days=15),
+            status="Under Process",
+            assigned_bureau_id=bureau_map["AB"].id,
+            assigned_officer_id=officer_map["ab.officer@aicte.gov.in"].id,
+            last_action="Deficiency report noted",
+            next_action="Compliance submission verification",
+            last_action_date=now - timedelta(days=10),
+            expected_disposal_date=now + timedelta(days=20),
+            priority="Medium",
+            is_overdue=False,
+            is_escalated=False,
+            match_confidence=1.0,
+            needs_institution_review=False,
+            candidate_institutions=[]
+        )
+        db.add(case_1c_a)
+        db.add(case_1c_b)
+        db.flush()
+        complaints.extend([case_1c_a, case_1c_b])
+        db.add(ActionHistory(complaint_id=case_1c_a.id, timestamp=case_1c_a.date_received, actor_name="SYSTEM", actor_role="Intake Portal", bureau_code="PGRC", action_type="received", remarks="Complaint registered via portal", details={}))
+        db.add(ActionHistory(complaint_id=case_1c_b.id, timestamp=case_1c_b.date_received, actor_name="SYSTEM", actor_role="Approval Bureau", bureau_code="AB", action_type="received", remarks="Infrastructure notice registered", details={}))
 
         # Seed Alert for Scenario 1
         db.add(Alert(
@@ -566,7 +730,17 @@ def seed_database():
         # 6. Generate Remaining Complaints to reach exactly 450
         # ---------------------------------------------------------
         # Filter out fixture institutions so scenario counts remain clean and isolated
-        fixture_perm_ids = {"1-1099238411", "1-1099112233", "1-1099445566", "1-1099334411", "1-1099334422", "1-1099334433", "1-1099882233"}
+        fixture_perm_ids = {
+            "1-1099238411",  # ABC Pune (Scenario 1)
+            "1-1099112233",  # NCE Jaipur (Scenario 2)
+            "1-1099445566",  # NCE Raipur (Scenario 2)
+            "1-1099334411",  # Apex Tech 1 (Scenario 3)
+            "1-1099334422",  # Apex Tech 2 (Scenario 3)
+            "1-1099334433",  # Apex Tech 3 (Scenario 3)
+            "1-1099882233",  # Sunrise Lucknow (Scenario 6)
+            "1-1099551122",  # Global Mumbai (Scenario 1b)
+            "1-1099553344",  # Imperial Chennai (Scenario 1c)
+        }
         general_institutions = [i for i in institutions if i.permanent_id not in fixture_perm_ids]
 
         bureaus_list = list(bureau_map.values())

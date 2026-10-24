@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.database import Base
+from backend.app.utils import utc_now
 
 
 class Alert(Base):
@@ -18,7 +18,7 @@ class Alert(Base):
     severity = Column(String(20), nullable=False, index=True)  # info, warning, critical
     target_bureau_id = Column(Integer, ForeignKey("bureaus.id", ondelete="SET NULL"), nullable=True, index=True)
     is_read = Column(Boolean, default=False, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
 
     # Relational associations
     complaint = relationship("Complaint", back_populates="alerts")
