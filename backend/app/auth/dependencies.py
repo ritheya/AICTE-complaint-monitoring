@@ -17,28 +17,28 @@ from backend.app.config import (
     ROLE_REGIONAL_OFFICER
 )
 
-# Standard OAuth2 bearer token scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+# Standard OAuth2 bearer token scheme configured for Swagger UI /docs Authorize button
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=True)
 
 
 def get_current_user(
-    token: Optional[str] = Depends(oauth2_scheme),
+    token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> Officer:
     """
     Validates PyJWT bearer token and resolves the corresponding active Officer.
-    Raises 401 UNAUTHORIZED on missing, expired, or invalid tokens.
+    Raises 401 UNAUTHORIZED on missing, empty, expired, or invalid tokens.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if not token:
+    if not token or not token.strip():
         raise credentials_exception
 
     try:
-        payload = decode_access_token(token)
+        payload = decode_access_token(token.strip())
         email: Optional[str] = payload.get("sub")
         if not email:
             raise credentials_exception

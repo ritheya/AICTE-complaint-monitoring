@@ -49,7 +49,10 @@ class ExtractResponse(BaseModel):
 
 
 @router.post("/extract", response_model=ExtractResponse)
-def extract_complaint_metadata(req: ExtractRequest):
+def extract_complaint_metadata(
+    req: ExtractRequest,
+    current_user: Officer = Depends(get_current_user)
+):
     """
     Extracts structured governance metadata from raw complaint text:
     - Extracts AICTE Permanent ID (format: 1-XXXXXXXXX).

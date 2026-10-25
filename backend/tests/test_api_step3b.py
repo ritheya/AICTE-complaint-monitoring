@@ -220,6 +220,153 @@ class TestOverlapsEndpoints:
         finally:
             db.close()
 
+    def test_all_seeded_caselinks_integrity_scan(self):
+        """
+        Enforces Item (c): Scans every CaseLink in the seeded database and asserts:
+        1. The two cases are in different bureaus.
+        2. The suggested lead is one of those two bureaus.
+        3. signals is non-empty and contains expected component keys.
+        4. Stored score equals what the engine recomputes within small tolerance (< 0.005).
+        """
+        from backend.app.services.overlap_engine import ComplaintOverlapEngine
+
+        db = SessionLocal()
+        try:
+            overlap_engine = ComplaintOverlapEngine()
+            overlap_engine.initialize_from_db(db)
+
+            links = db.query(CaseLink).all()
+            assert len(links) > 0, "Database must have seeded CaseLinks"
+
+            for link in links:
+                ca = link.case_a
+                cb = link.case_b
+                assert ca is not None and cb is not None, f"Link {link.id} has missing complaint"
+
+                # 1. Different bureaus
+                assert ca.assigned_bureau_id != cb.assigned_bureau_id, (
+                    f"Link {link.id} pairs two cases in the same bureau: {ca.case_id} vs {cb.case_id}"
+                )
+
+                # 2. Suggested lead is one of the two involved bureaus
+                involved_bureaus = {ca.assigned_bureau_id, cb.assigned_bureau_id}
+                assert link.suggested_lead_bureau_id in involved_bureaus, (
+                    f"Link {link.id} suggested lead {link.suggested_lead_bureau_id} not in involved bureaus {involved_bureaus}"
+                )
+
+                # 3. signals is non-empty
+                assert bool(link.signals) is True, f"Link {link.id} has empty signals"
+                assert "text_similarity" in link.signals
+                assert "category_relation" in link.signals
+                assert "date_proximity" in link.signals
+
+                # 4. Stored score equals engine recomputed score within small tolerance
+                recomputed = overlap_engine.evaluate_overlap(ca, cb, db=db)
+                assert abs(link.similarity_score - recomputed.score) < 0.005, (
+                    f"Link {link.id} stored score {link.similarity_score} differs from recomputed {recomputed.score}"
+                )
+        finally:
+            db.close()
+
+    def test_overlap_decision_comprehensive_behaviour(self, headers):
+        """
+        Enforces Item (e): Confirms complete overlap decision behaviour:
+        1. Both cases get exactly one history entry per decision.
+        2. Repeat decision does not add duplicate history entries.
+        3. A non-party bureau gets 403.
+        4. Rejection requires remarks (400 if empty).
+        5. needs_discussion creates an alert for the other bureau.
+        """
+        db = SessionLocal()
+        try:
+            # Pick a suggested link (e.g. Scenario 1)
+            link = db.query(CaseLink).filter(CaseLink.status == "suggested").first()
+            assert link is not None, "A suggested CaseLink must exist"
+            link_id = link.id
+            ca_id = link.case_a_id
+            cb_id = link.case_b_id
+            ca_bureau = link.case_a.assigned_bureau.code
+            cb_bureau = link.case_b.assigned_bureau.code
+        finally:
+            db.close()
+
+        # Determine party personas vs non-party persona
+        party_bureau_roles = []
+        if ca_bureau == "PGRC" or cb_bureau == "PGRC":
+            party_bureau_roles.append("pgrc_officer")
+        if ca_bureau == "RB" or cb_bureau == "RB":
+            party_bureau_roles.append("rb_officer")
+        if ca_bureau == "AB" or cb_bureau == "AB":
+            party_bureau_roles.append("ab_officer")
+
+        acting_party_role = party_bureau_roles[0]
+        # Choose non-party officer
+        non_party_role = "ab_officer" if "ab_officer" not in party_bureau_roles else "pgrc_officer"
+
+        # --- A. Non-party bureau gets 403 ---
+        res_403 = client.post(
+            f"/overlaps/{link_id}/decision",
+            json={"decision": "needs_discussion", "remarks": "Unauthorized decision attempt"},
+            headers=headers(non_party_role)
+        )
+        assert res_403.status_code == 403, f"Expected 403 for non-party bureau, got {res_403.status_code}"
+
+        # --- B. Rejection requires remarks (400 if empty) ---
+        res_reject_no_remarks = client.post(
+            f"/overlaps/{link_id}/decision",
+            json={"decision": "rejected", "remarks": ""},
+            headers=headers(acting_party_role)
+        )
+        assert res_reject_no_remarks.status_code == 400, "Rejection without remarks must return 400"
+        assert "remarks" in res_reject_no_remarks.json()["detail"].lower()
+
+        # --- C. Valid decision: both cases get exactly one history entry ---
+        db = SessionLocal()
+        hist_a_before = db.query(ActionHistory).filter(ActionHistory.complaint_id == ca_id).count()
+        hist_b_before = db.query(ActionHistory).filter(ActionHistory.complaint_id == cb_id).count()
+        db.close()
+
+        # Decision: needs_discussion
+        res_disc = client.post(
+            f"/overlaps/{link_id}/decision",
+            json={"decision": "needs_discussion", "remarks": "Let us coordinate on fee refund policy."},
+            headers=headers(acting_party_role)
+        )
+        assert res_disc.status_code == 200
+        assert res_disc.json()["status"] == "needs_discussion"
+
+        db = SessionLocal()
+        try:
+            hist_a_after = db.query(ActionHistory).filter(ActionHistory.complaint_id == ca_id).count()
+            hist_b_after = db.query(ActionHistory).filter(ActionHistory.complaint_id == cb_id).count()
+            assert hist_a_after == hist_a_before + 1, "Case A must get exactly one new ActionHistory entry"
+            assert hist_b_after == hist_b_before + 1, "Case B must get exactly one new ActionHistory entry"
+
+            # --- D. needs_discussion creates an alert for the other bureau ---
+            created_alert = db.query(Alert).filter(
+                Alert.type == "overlap",
+                Alert.complaint_id == ca_id
+            ).order_by(Alert.id.desc()).first()
+            assert created_alert is not None, "needs_discussion must create an alert"
+            link_db = db.query(CaseLink).filter(CaseLink.id == link_id).first()
+            assert created_alert.target_bureau_id in [link_db.case_a.assigned_bureau_id, link_db.case_b.assigned_bureau_id]
+
+            # --- E. Repeat decision does not add duplicates ---
+            res_repeat = client.post(
+                f"/overlaps/{link_id}/decision",
+                json={"decision": "needs_discussion", "remarks": "Duplicate repeat request"},
+                headers=headers(acting_party_role)
+            )
+            assert res_repeat.status_code == 200
+
+            hist_a_repeat = db.query(ActionHistory).filter(ActionHistory.complaint_id == ca_id).count()
+            hist_b_repeat = db.query(ActionHistory).filter(ActionHistory.complaint_id == cb_id).count()
+            assert hist_a_repeat == hist_a_after, "Repeat decision must NOT add duplicate history to Case A"
+            assert hist_b_repeat == hist_b_after, "Repeat decision must NOT add duplicate history to Case B"
+        finally:
+            db.close()
+
+
 
 class TestAlertsEndpoints:
     """Validates /alerts listing, bureau scoping, and acknowledgement."""
@@ -228,12 +375,16 @@ class TestAlertsEndpoints:
         # Senior management sees all alerts
         res_mgmt = client.get("/alerts", headers=headers("senior_mgmt"))
         assert res_mgmt.status_code == 200
-        assert len(res_mgmt.json()) >= 1
+        data_mgmt = res_mgmt.json()
+        assert data_mgmt["total"] >= 1
+        assert len(data_mgmt["items"]) >= 1
 
         # PGRC officer sees bureau-targeted alerts or global alerts
         res_pgrc = client.get("/alerts", headers=headers("pgrc_officer"))
         assert res_pgrc.status_code == 200
-        for alert in res_pgrc.json():
+        data_pgrc = res_pgrc.json()
+        assert data_pgrc["total"] >= 1
+        for alert in data_pgrc["items"]:
             assert alert["target_bureau_id"] in [None, 2]
 
     def test_mark_alert_read(self, headers):
@@ -271,10 +422,12 @@ class TestSchedulerAndSlaCheck:
     """
 
     def test_scheduler_status(self, headers):
+        from backend.app.config import ENABLE_BACKGROUND_SLA_JOB
         res = client.get("/scheduler/status", headers=headers("senior_mgmt"))
         assert res.status_code == 200
         data = res.json()
-        assert data["scheduler_running"] is True
+        assert data["background_job_enabled"] is ENABLE_BACKGROUND_SLA_JOB
+        assert data["scheduler_running"] is ENABLE_BACKGROUND_SLA_JOB
         assert data["active_jobs_count"] >= 1
         assert any(job["id"] == "sla_daily_monitoring_job" for job in data["jobs"])
 
@@ -337,6 +490,8 @@ class TestSchedulerAndSlaCheck:
         data1 = res1.json()
         assert data1["status"] == "success"
         assert data1["overdue_complaints"] >= 1
+        assert "escalated_case_ids" in data1
+        assert "AICTE/TEST/2026/99999" in data1["escalated_case_ids"]
 
         # Verify case was dynamically flagged overdue and escalated
         db = SessionLocal()
@@ -344,6 +499,7 @@ class TestSchedulerAndSlaCheck:
             updated_case = db.query(Complaint).filter(Complaint.id == case_id_val).first()
             assert updated_case.is_overdue is True
             assert updated_case.is_escalated is True
+            assert updated_case.status == "Escalated"
             assert "Auto-Escalated" in updated_case.last_action
 
             # Count action histories and alerts
@@ -364,6 +520,9 @@ class TestSchedulerAndSlaCheck:
         # Run 2: Re-run immediately to verify strict idempotency
         res2 = client.post("/scheduler/run-sla-check", headers=headers("senior_mgmt"))
         assert res2.status_code == 200
+        data2 = res2.json()
+        assert data2["newly_escalated_complaints"] == 0
+        assert data2["escalated_case_ids"] == []
 
         db = SessionLocal()
         try:
@@ -407,9 +566,21 @@ class TestDashboardEndpoints:
         data = res.json()
         assert "total_complaints" in data
         assert "pending_complaints" in data
+        assert "under_process_complaints" in data
+        assert "escalated_complaints" in data
+        assert "transferred_complaints" in data
+        assert "disposed_complaints" in data
+        assert "overdue_complaints" in data
         assert "active_overlaps" in data
         assert "high_risk_institutions" in data
-        assert data["total_complaints"] >= 1
+        sum_statuses = (
+            data["pending_complaints"] +
+            data["under_process_complaints"] +
+            data["escalated_complaints"] +
+            data["transferred_complaints"] +
+            data["disposed_complaints"]
+        )
+        assert sum_statuses == data["total_complaints"], f"Status counts sum ({sum_statuses}) != total ({data['total_complaints']})"
 
     def test_bureau_workload(self, headers):
         res = client.get("/dashboard/bureau-workload", headers=headers("senior_mgmt"))

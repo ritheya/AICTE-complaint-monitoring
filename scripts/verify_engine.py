@@ -222,23 +222,68 @@ def run_verification():
     results.append(("Scenario 3: Human Review Band", status_str, f"Score: {res_bengaluru.confidence:.2f}, Status: {res_bengaluru.status}, Candidates: 3"))
 
     # --------------------------------------------------------------------------
-    # SCENARIO 4: Overdue Case Auto-Escalation Target
+    # SCENARIO 4: Overdue Case Auto-Escalation Engine Execution
     # --------------------------------------------------------------------------
-    print("\n[SCENARIO 4] SLA Overdue & Escalation Target")
+    print("\n[SCENARIO 4] SLA Overdue & Dynamic Auto-Escalation Execution")
     print("-" * 80)
+    from backend.app.services.scheduler_service import run_sla_check_evaluation
+    from backend.app.models.action_history import ActionHistory
+    from backend.app.models.alert import Alert
+
     c4 = db.query(Complaint).filter(Complaint.case_id == "AICTE/RB/2026/00045").first()
     if not c4:
         print("  [FAIL] Scenario 4 case AICTE/RB/2026/00045 not found.")
         results.append(("Scenario 4: SLA Overdue", "FAIL", "Missing case"))
     else:
-        print(f"  Case ID: {c4.case_id} (Priority: {c4.priority})")
-        print(f"  Category: {c4.category} (Assigned Bureau: {c4.assigned_bureau.code})")
-        print(f"  Status: {c4.status} | Overdue Flag: {c4.is_overdue} | Escalated Flag: {c4.is_escalated}")
-        s4_pass = c4.is_overdue and not c4.is_escalated and c4.priority == "High"
+        print(f"  Pre-Execution State:")
+        print(f"    Case ID: {c4.case_id} (Priority: {c4.priority}, Category: {c4.category})")
+        print(f"    Status: {c4.status} | Overdue: {c4.is_overdue} | Escalated: {c4.is_escalated}")
+
+        # Execute the real SLA check engine
+        sla_result = run_sla_check_evaluation(db)
+        db.refresh(c4)
+
+        print(f"  Post-Execution State:")
+        print(f"    Engine Output: {sla_result['overdue_complaints']} overdue, {sla_result['newly_escalated_complaints']} newly escalated")
+        print(f"    Case Escalated Flag: {c4.is_escalated} (Last Action: {c4.last_action})")
+
+        # Verify ActionHistory and Alert
+        esc_history = db.query(ActionHistory).filter(
+            ActionHistory.complaint_id == c4.id,
+            ActionHistory.action_type == "AUTO_ESCALATION"
+        ).first()
+        esc_alert = db.query(Alert).filter(
+            Alert.complaint_id == c4.id,
+            Alert.type == "escalation"
+        ).first()
+
+        s4_pass = c4.is_overdue and c4.is_escalated and (esc_history is not None) and (esc_alert is not None)
         status_str = "PASS" if s4_pass else "FAIL"
-        print(f"  Ready for Scheduled Auto-Escalation: {s4_pass}")
+        print(f"  Real Engine Auto-Escalation & Audit Log: {s4_pass}")
         print(f"  --> Status: [{status_str}]")
-        results.append(("Scenario 4: SLA Overdue", status_str, "Case ready for escalation"))
+        results.append(("Scenario 4: SLA Auto-Escalation", status_str, "Dynamic engine execution verified live"))
+
+        # Restore all newly escalated cases so demo button is live for user review and DB remains pristine
+        for esc_cid in sla_result.get("escalated_case_ids", []):
+            esc_case = db.query(Complaint).filter(Complaint.case_id == esc_cid).first()
+            if esc_case:
+                esc_case.is_escalated = False
+                if esc_case.status == "Escalated":
+                    esc_case.status = "Under Process"
+                esc_case.last_action = (
+                    "Under Process at Regulatory Bureau"
+                    if esc_cid == c4.case_id
+                    else "Hearing notice issued - prolonged compliance overdue"
+                )
+                db.query(ActionHistory).filter(
+                    ActionHistory.complaint_id == esc_case.id,
+                    ActionHistory.action_type == "AUTO_ESCALATION"
+                ).delete()
+                db.query(Alert).filter(
+                    Alert.complaint_id == esc_case.id,
+                    Alert.type.in_(["escalation", "sla_breached"])
+                ).delete()
+        db.commit()
 
     # --------------------------------------------------------------------------
     # SCENARIO 5: Live Intake Fixture & Live Pre-Check Overlap

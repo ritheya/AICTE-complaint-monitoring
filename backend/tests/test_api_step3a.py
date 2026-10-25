@@ -22,11 +22,6 @@ from backend.app.auth.security import login_rate_limiter
 client = TestClient(app)
 
 
-@pytest.fixture(scope="module")
-def db_session():
-    session = SessionLocal()
-    yield session
-    session.close()
 
 
 @pytest.fixture
@@ -209,12 +204,13 @@ class TestComplaintsEndpointsAndAccessControl:
 
 class TestLiveIntakeAndPrecheck:
 
-    def test_intake_extract_metadata(self):
+    def test_intake_extract_metadata(self, auth_headers):
         """Tests POST /intake/extract keyword metadata parsing."""
+        headers = auth_headers("pgrc.officer@aicte.gov.in")
         payload = {
             "text": "Sir, my college ABC Tech Pune 1-1099238411 is illegally taking Rs 25000 caution money without receipt and not issuing hall ticket for tomorrow exam."
         }
-        res = client.post("/intake/extract", json=payload)
+        res = client.post("/intake/extract", json=payload, headers=headers)
         assert res.status_code == 200
         data = res.json()
         assert data["category"] == "Fee Related"

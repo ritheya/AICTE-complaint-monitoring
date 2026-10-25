@@ -42,8 +42,9 @@ def get_dashboard_summary(
     total = query.count()
     pending = query.filter(Complaint.status == "Pending").count()
     under_process = query.filter(Complaint.status == "Under Process").count()
+    escalated = query.filter(Complaint.status == "Escalated").count()
+    transferred = query.filter(Complaint.status == "Transferred").count()
     disposed = query.filter(Complaint.status == "Disposed").count()
-    escalated = query.filter(Complaint.is_escalated.is_(True), Complaint.status != "Disposed").count()
     overdue = query.filter(Complaint.is_overdue.is_(True), Complaint.status != "Disposed").count()
 
     # Active Overlaps
@@ -62,8 +63,9 @@ def get_dashboard_summary(
         total_complaints=total,
         pending_complaints=pending,
         under_process_complaints=under_process,
-        disposed_complaints=disposed,
         escalated_complaints=escalated,
+        transferred_complaints=transferred,
+        disposed_complaints=disposed,
         overdue_complaints=overdue,
         active_overlaps=active_overlaps,
         high_risk_institutions=high_risk_count

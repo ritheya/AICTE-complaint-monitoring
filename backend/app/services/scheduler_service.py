@@ -34,6 +34,7 @@ def run_sla_check_evaluation(db: Session) -> Dict[str, Any]:
     evaluated_count = len(open_complaints)
     flagged_overdue_count = 0
     newly_escalated_count = 0
+    newly_escalated_case_ids: List[str] = []
     alerts_created_count = 0
 
     for c in open_complaints:
@@ -79,7 +80,9 @@ def run_sla_check_evaluation(db: Session) -> Dict[str, Any]:
 
             # 2. Auto-escalation if past configured threshold (e.g., >= 7 days overdue)
             if days_overdue >= SLA_AUTO_ESCALATE_OVERDUE_DAYS and not c.is_escalated:
+                prev_status = c.status
                 c.is_escalated = True
+                c.status = "Escalated"
                 c.last_action = "Auto-Escalated to Senior Management due to prolonged SLA breach"
                 c.last_action_date = now
 
@@ -99,6 +102,8 @@ def run_sla_check_evaluation(db: Session) -> Dict[str, Any]:
                         action_type="AUTO_ESCALATION",
                         remarks=f"Automated statutory escalation: Case is {days_overdue} days past target disposal date.",
                         details={
+                            "previous_status": prev_status,
+                            "new_status": "Escalated",
                             "days_overdue": days_overdue,
                             "threshold_days": SLA_AUTO_ESCALATE_OVERDUE_DAYS,
                             "date_received": c.date_received.isoformat(),
@@ -107,6 +112,7 @@ def run_sla_check_evaluation(db: Session) -> Dict[str, Any]:
                     )
                     db.add(history)
                     newly_escalated_count += 1
+                    newly_escalated_case_ids.append(c.case_id)
 
                 # Alert Senior Management
                 existing_mgmt_alert = db.query(Alert).filter(
@@ -125,6 +131,7 @@ def run_sla_check_evaluation(db: Session) -> Dict[str, Any]:
                         created_at=now
                     )
                     db.add(mgmt_alert)
+                    alerts_created_count += 1
 
     db.commit()
 
@@ -133,6 +140,7 @@ def run_sla_check_evaluation(db: Session) -> Dict[str, Any]:
         "evaluated_complaints": evaluated_count,
         "overdue_complaints": flagged_overdue_count,
         "newly_escalated_complaints": newly_escalated_count,
+        "escalated_case_ids": newly_escalated_case_ids,
         "alerts_created": alerts_created_count,
         "timestamp": now.isoformat()
     }

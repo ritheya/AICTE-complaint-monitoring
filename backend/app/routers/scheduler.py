@@ -14,6 +14,8 @@ from backend.app.services.scheduler_service import (
     scheduled_sla_check_job
 )
 
+from backend.app.config import ENABLE_BACKGROUND_SLA_JOB
+
 router = APIRouter(prefix="/scheduler", tags=["Scheduler"])
 
 # Global APScheduler background instance
@@ -29,7 +31,7 @@ scheduler.add_job(
     replace_existing=True
 )
 
-if not scheduler.running:
+if ENABLE_BACKGROUND_SLA_JOB and not scheduler.running:
     scheduler.start()
 
 
@@ -59,14 +61,16 @@ def get_scheduler_status(
     """
     jobs = []
     for job in scheduler.get_jobs():
+        next_run = getattr(job, "next_run_time", None)
         jobs.append({
             "id": job.id,
             "name": job.name,
-            "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None
+            "next_run_time": next_run.isoformat() if next_run else None
         })
 
     return {
         "scheduler_running": scheduler.running,
+        "background_job_enabled": ENABLE_BACKGROUND_SLA_JOB,
         "active_jobs_count": len(jobs),
         "jobs": jobs
     }

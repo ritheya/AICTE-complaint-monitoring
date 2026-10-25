@@ -9,12 +9,12 @@ from backend.app.database import get_db
 from backend.app.models.alert import Alert
 from backend.app.models.bureau import Officer
 from backend.app.auth.dependencies import get_current_user
-from backend.app.schemas.alert import AlertResponse
+from backend.app.schemas.alert import AlertResponse, PaginatedAlertResponse
 
 router = APIRouter(prefix="/alerts", tags=["System Alerts"])
 
 
-@router.get("", response_model=List[AlertResponse])
+@router.get("", response_model=PaginatedAlertResponse)
 def list_alerts(
     unread_only: bool = Query(False, description="Filter for unacknowledged alerts"),
     severity: Optional[str] = Query(None, description="info, warning, critical"),
@@ -27,6 +27,7 @@ def list_alerts(
     """
     Lists system notifications, SLA warning triggers, and overlap alerts.
     Filters by user's assigned bureau for bureau-level officers.
+    Returns pagination metadata including total matching count.
     """
     query = db.query(Alert)
 
@@ -47,8 +48,14 @@ def list_alerts(
     if alert_type:
         query = query.filter(Alert.type == alert_type.strip().lower())
 
+    total_count = query.count()
     alerts = query.order_by(Alert.created_at.desc()).offset(skip).limit(limit).all()
-    return alerts
+    return PaginatedAlertResponse(
+        total=total_count,
+        skip=skip,
+        limit=limit,
+        items=alerts
+    )
 
 
 @router.patch("/{alert_id}/read", response_model=AlertResponse)

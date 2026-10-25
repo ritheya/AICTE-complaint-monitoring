@@ -10,6 +10,7 @@ from backend.app.models.case_link import CaseLink
 from backend.app.models.complaint import Complaint
 from backend.app.models.action_history import ActionHistory
 from backend.app.models.bureau import Officer
+from backend.app.models.alert import Alert
 from backend.app.utils import utc_now
 from backend.app.auth.dependencies import get_current_user
 from backend.app.schemas.overlap import (
@@ -137,6 +138,16 @@ def decide_overlap(
                 detail="Forbidden: Only officers from the involved bureaus or Senior Management can record overlap decisions."
             )
 
+    if req.decision == "rejected" and not (req.remarks and req.remarks.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Remarks are mandatory when rejecting an overlap alert."
+        )
+
+    # Repeat decision idempotency: do not add duplicate ActionHistory or alerts if decision unchanged
+    if link.status == req.decision:
+        return _format_case_link_response(link)
+
     now = utc_now()
     link.status = req.decision
     link.decided_by_id = current_user.id
@@ -148,6 +159,32 @@ def decide_overlap(
     elif req.decision == "approved" and link.suggested_lead_bureau_id:
         # Default to suggested lead bureau if none specified
         link.final_lead_bureau_id = link.suggested_lead_bureau_id
+
+    # If needs_discussion, create alert for the other bureau
+    if req.decision == "needs_discussion":
+        other_bureau_id = None
+        if current_user.bureau_id == case_a.assigned_bureau_id:
+            other_bureau_id = case_b.assigned_bureau_id
+        elif current_user.bureau_id == case_b.assigned_bureau_id:
+            other_bureau_id = case_a.assigned_bureau_id
+        else:
+            other_bureau_id = case_b.assigned_bureau_id
+
+        actor_bureau = current_user.bureau.code if current_user.bureau else "HQ"
+        db.add(Alert(
+            type="overlap",
+            complaint_id=case_a.id,
+            institution_id=link.institution_id,
+            message=(
+                f"Inter-bureau discussion requested by {current_user.name} ({actor_bureau}) "
+                f"on overlap between {case_a.case_id} and {case_b.case_id}. "
+                f"Remarks: {req.remarks or 'Coordination requested.'}"
+            ),
+            severity="warning",
+            target_bureau_id=other_bureau_id,
+            is_read=False,
+            created_at=now
+        ))
 
     # Append immutable ActionHistory to Case A
     history_a = ActionHistory(

@@ -19,3 +19,13 @@ class AlertResponse(BaseModel):
     target_bureau_id: Optional[int] = None
     is_read: bool
     created_at: datetime
+
+
+class PaginatedAlertResponse(BaseModel):
+    """Paginated list of operational alerts with total match count."""
+    model_config = ConfigDict(from_attributes=True)
+
+    total: int
+    skip: int
+    limit: int
+    items: list[AlertResponse]

@@ -3,6 +3,8 @@ AICTE Complaint Monitor - Central Engine Configuration
 Every parameter, weight, threshold, dictionary, and SLA matrix is declared here.
 """
 
+import os
+
 # ==============================================================================
 # 1. INSTITUTION RESOLUTION THRESHOLDS & GEOGRAPHIC RULES
 # ==============================================================================
@@ -286,6 +288,7 @@ SLA_PRIORITY_MULTIPLIERS = {
 
 SLA_DUE_SOON_PERCENTAGE = 0.20             # Alert when <= 20% of SLA time remains
 SLA_AUTO_ESCALATE_OVERDUE_DAYS = 7         # Auto-escalate to Senior Management if > 7 days overdue
+ENABLE_BACKGROUND_SLA_JOB = os.getenv("ENABLE_BACKGROUND_SLA_JOB", "false").lower() in ("true", "1")
 
 
 # ==============================================================================
@@ -293,6 +296,7 @@ SLA_AUTO_ESCALATE_OVERDUE_DAYS = 7         # Auto-escalate to Senior Management 
 # ==============================================================================
 import os
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "aicte-secret-key-super-secure-change-in-prod-2026")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours

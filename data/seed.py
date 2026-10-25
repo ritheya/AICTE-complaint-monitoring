@@ -17,6 +17,8 @@ from backend.app.utils import utc_now
 from backend.app.models.action_history import ActionHistory
 from backend.app.models.case_link import CaseLink
 from backend.app.models.alert import Alert
+from backend.app.services.overlap_engine import ComplaintOverlapEngine
+from backend.app.services.lead_bureau_rules import LeadBureauEngine
 
 
 def hash_password(password: str) -> str:
@@ -39,6 +41,64 @@ COMPLAINT_CATEGORIES = [
     "Fake/Unapproved Courses",
     "Other"
 ]
+
+CATEGORY_DESCRIPTION_TEMPLATES = {
+    "Fee Related": [
+        "Dispute over unapproved exam re-evaluation fee charged per subject without official receipt.",
+        "College management withholding original educational certificates over pending library charges.",
+        "Tuition fee increased mid-year by 25 percent without university fee committee notification.",
+        "Refund of admission cancellation charges withheld beyond 30 days statutory window.",
+        "Mandatory extra development fees demanded for unutilized transport and laboratory facilities.",
+        "Demand for non-refundable caution deposit during second semester registration."
+    ],
+    "Faculty Shortage": [
+        "No regular faculty appointed for specialized artificial intelligence elective courses.",
+        "Cadre ratio severely skewed with zero professors in electronics and communications department.",
+        "Guest lecturers conducting mandatory core subjects without AICTE requisite qualifications.",
+        "Dean and department head positions vacant for over six months affecting course delivery.",
+        "Assistant professors engaged on ad-hoc ten-month contracts with delayed salary disbursement."
+    ],
+    "Infrastructure": [
+        "Computer laboratory internet bandwidth insufficient for mandatory online coursework.",
+        "Central library lacks prescribed syllabus reference textbooks for mechanical engineering.",
+        "Fire safety clearance certificate expired and no operational extinguishers in hostel block.",
+        "Boys hostel drinking water filtration plant non-functional for past two months.",
+        "Machine tool workshop equipment outdated and non-operational for practical examinations."
+    ],
+    "Approval/Affiliation Compliance": [
+        "Institution operating from temporary premises exceeding five year permissible tenure.",
+        "Mandatory disclosure link missing on official college website in violation of AICTE norms.",
+        "Land and built-up instructional area deficiency observed during university affiliation review.",
+        "Running unapproved post-graduate diploma tracks without regulatory council sanction."
+    ],
+    "Admission Irregularity": [
+        "Management quota seat allotment executed without publishing merit list on public portal.",
+        "Cutoff marks lowered for direct spot admission in violation of state counseling guidelines.",
+        "Admissions conducted beyond sanctioned student intake cap for computer science branch."
+    ],
+    "Placement Misrepresentation": [
+        "Admission brochure claims 100 percent placement assistance but no campus drives conducted.",
+        "Placement statistics inflated by including off-campus non-technical telecalling roles."
+    ],
+    "Examination/Result": [
+        "Internal assessment marks withheld due to attendance calculation dispute in third year.",
+        "Semester marksheet issuance delayed by over 90 days preventing placement onboarding.",
+        "Discrepancy in practical examination grading not addressed by controller of examinations."
+    ],
+    "Harassment/Student Welfare": [
+        "Internal complaints committee not constituted as per AICTE gender sensitization regulations.",
+        "Grievance redressal cell portal non-functional and written student complaints ignored.",
+        "Hostel curfew hours and punitive fines imposed arbitrarily without warden hearing."
+    ],
+    "Fake/Unapproved Courses": [
+        "Institution advertising technical diploma program without AICTE extension of approval letter.",
+        "Autonomous certificate course marketed as an AICTE recognized degree program."
+    ],
+    "Other": [
+        "Administrative office staff refusing to issue bonafide certificate for education loan processing.",
+        "Delay in processing duplicate student identity card request submitted two months ago."
+    ]
+}
 
 COMPLAINANT_TYPES = ["Student", "Faculty", "Parent", "Citizen"]
 SOURCES = ["Portal", "CPGRAMS", "Email", "Letter"]
@@ -71,7 +131,17 @@ INDIAN_CITIES = [
     ("Shillong", "Meghalaya", "North-East", "793001")
 ]
 
-INST_PREFIXES = ["Apex", "National", "Global", "Imperial", "Vanguard", "Metropolitan", "Universal", "Modern", "Beacon", "Pioneer", "Silicon", "Zenith", "Horizon", "Sterling", "Elite", "Premier"]
+GENERATED_INST_PREFIXES = [
+    "Vanguard", "Metropolitan", "Universal", "Modern", "Beacon", "Pioneer",
+    "Silicon", "Zenith", "Horizon", "Sterling", "Elite", "Premier",
+    "Pinnacle", "Paramount", "Summit", "Galaxy", "Nova", "Heritage",
+    "Trinity", "Loyola", "St. Xavier's", "Oxford", "Cambridge", "Vidya",
+    "Pratibha", "Aryabhatta", "Chanakya", "Vivekananda", "Tagore", "Ramanujan",
+    "Visvesvaraya", "Bhabha", "Kalam", "Sarabhai", "Bose", "Drona",
+    "Acharya", "Sigma", "Matrix", "Kaveri", "Godavari", "Ganga",
+    "Himalaya", "Vindhya", "Sahyadri", "Nilgiri", "Saraswati", "Nalanda",
+    "Takshashila", "Indus"
+]
 INST_TYPES = ["Institute of Technology", "College of Engineering", "Institute of Management & Tech", "Engineering Academy", "Polytechnic Institute"]
 
 
@@ -85,6 +155,10 @@ def seed_database():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
+
+    # Reset in-memory rate limiter so no accounts are blocked on fresh seed
+    from backend.app.auth.security import login_rate_limiter
+    login_rate_limiter._attempts.clear()
 
     try:
         # ---------------------------------------------------------
@@ -284,24 +358,92 @@ def seed_database():
         db.add(inst_imperial_chennai)
         institutions.append(inst_imperial_chennai)
 
-        # Generate remaining ~141 institutions to reach exactly 150
+        # Explicit fixtures for resolution tests
+        inst_premier_pune = Institution(
+            permanent_id="1-1099667788",
+            name="Premier Institute of Technology",
+            normalized_name="premier institute of technology",
+            aliases=["Premier Tech Pune", "PIT Pune"],
+            address="Paud Road, Kothrud, Pune",
+            city="Pune",
+            state="Maharashtra",
+            region="West",
+            pincode="411038",
+            institution_type="Engineering & Technology",
+            risk_score=22.0,
+            risk_breakdown={"complaint_volume": 5.0, "pending_ratio": 4.0, "severity": 4.0, "repeat_categories": 0.0, "unresolved_overlaps": 0.0}
+        )
+        inst_nea_delhi = Institution(
+            permanent_id="1-1099667799",
+            name="National Engineering Academy",
+            normalized_name="national engineering academy",
+            aliases=["NEA Delhi", "National Engg"],
+            address="Pusa Road, Karol Bagh, New Delhi",
+            city="New Delhi",
+            state="Delhi",
+            region="North",
+            pincode="110005",
+            institution_type="Engineering & Technology",
+            risk_score=26.0,
+            risk_breakdown={"complaint_volume": 7.0, "pending_ratio": 5.0, "severity": 5.0, "repeat_categories": 0.0, "unresolved_overlaps": 0.0}
+        )
+        db.add(inst_premier_pune)
+        db.add(inst_nea_delhi)
+        institutions.extend([inst_premier_pune, inst_nea_delhi])
+
+        # Generate remaining institutions to reach exactly 150
         random.seed(42)
         perm_counter = 1099500000
+
+        used_institution_names = set(inst.name.lower() for inst in institutions)
+        used_aliases = set(alias.lower() for inst in institutions for alias in (inst.aliases or []))
+
         while len(institutions) < 150:
             perm_counter += 1
-            prefix = random.choice(INST_PREFIXES)
-            itype = random.choice(INST_TYPES)
             city_entry = random.choice(INDIAN_CITIES)
             city, state, region, pincode = city_entry
-            inst_name = f"{prefix} {itype}"
-            norm_name = inst_name.lower()
+
+            # Select unique institution name
+            candidate_name = None
+            for _ in range(50):
+                prefix = random.choice(GENERATED_INST_PREFIXES)
+                itype = random.choice(INST_TYPES)
+                trial_name = f"{prefix} {itype}"
+                if trial_name.lower() in used_institution_names:
+                    trial_name = f"{prefix} {itype} of {city}"
+                if trial_name.lower() in used_institution_names:
+                    trial_name = f"{prefix} Regional {itype} ({city})"
+                if trial_name.lower() not in used_institution_names:
+                    candidate_name = trial_name
+                    break
+
+            if not candidate_name:
+                candidate_name = f"Institute of Technical Sciences {city} {perm_counter % 1000}"
+
+            used_institution_names.add(candidate_name.lower())
+            norm_name = candidate_name.lower()
             perm_id = f"1-{perm_counter}"
+
+            # Generate strictly unique aliases per institution
+            inst_aliases = []
+            alias_1 = f"{prefix} Tech ({city})"
+            alias_2 = f"{prefix} Engg ({city})"
+            if alias_1.lower() not in used_aliases:
+                inst_aliases.append(alias_1)
+                used_aliases.add(alias_1.lower())
+            if alias_2.lower() not in used_aliases:
+                inst_aliases.append(alias_2)
+                used_aliases.add(alias_2.lower())
+            if not inst_aliases:
+                fallback_alias = f"{prefix}-{city[:3].upper()}-{perm_counter % 1000}"
+                inst_aliases.append(fallback_alias)
+                used_aliases.add(fallback_alias.lower())
 
             inst = Institution(
                 permanent_id=perm_id,
-                name=inst_name,
+                name=candidate_name,
                 normalized_name=norm_name,
-                aliases=[f"{prefix} Tech", f"{prefix} Engg"],
+                aliases=inst_aliases,
                 address=f"Plot No. {random.randint(10, 500)}, Knowledge Park, {city}",
                 city=city,
                 state=state,
@@ -385,24 +527,7 @@ def seed_database():
         db.add(ActionHistory(complaint_id=case_1a.id, timestamp=now - timedelta(days=25), actor_name="Ms. Sunita Patil", actor_role="PGRC Officer", bureau_code="PGRC", action_type="assigned", remarks="Assigned to PGRC Desk 2", details={}))
         db.add(ActionHistory(complaint_id=case_1b.id, timestamp=case_1b.date_received, actor_name="SYSTEM", actor_role="Regulation Bureau", bureau_code="RB", action_type="received", remarks="Show-cause notice registered in RB", details={"source": "Letter"}))
 
-        # Seed Overlap Record for Scenario 1
-        case_link_1 = CaseLink(
-            case_a_id=case_1a.id,
-            case_b_id=case_1b.id,
-            institution_id=inst_abc_pune.id,
-            similarity_score=0.89,
-            reasons=[
-                "Same AICTE Permanent ID (1-1099238411)",
-                "Active across different bureaus (PGRC and RB)",
-                "High text similarity on Rs 25,000 caution money, unapproved exam charges, and admit card withholding",
-                "Related categories: Fee Related and Approval/Affiliation Compliance",
-                "Date proximity: Filed within 3 days of each other"
-            ],
-            suggested_lead_bureau_id=bureau_map["RB"].id,
-            lead_suggestion_rule="RULE_STATUTORY_REGULATORY: Show-cause notice / statutory compliance inquiry in RB takes precedence -> RB Leads",
-            status="suggested"
-        )
-        db.add(case_link_1)
+        # Note: CaseLinks and Overlap Alerts are generated dynamically via ComplaintOverlapEngine below
 
         # SCENARIO 1b: Soft Overlap in Review Band (Global Institute of Technology, Mumbai)
         case_1b_a = Complaint(
@@ -458,24 +583,7 @@ def seed_database():
         db.add(ActionHistory(complaint_id=case_1b_a.id, timestamp=case_1b_a.date_received, actor_name="SYSTEM", actor_role="Intake Portal", bureau_code="PGRC", action_type="received", remarks="Complaint registered via portal", details={}))
         db.add(ActionHistory(complaint_id=case_1b_b.id, timestamp=case_1b_b.date_received, actor_name="SYSTEM", actor_role="Approval Bureau", bureau_code="AB", action_type="received", remarks="Sanctioned intake scrutiny initiated", details={}))
 
-        # Seed Overlap Record for Scenario 1b (Review Band)
-        case_link_1b = CaseLink(
-            case_a_id=case_1b_a.id,
-            case_b_id=case_1b_b.id,
-            institution_id=inst_global_mumbai.id,
-            similarity_score=0.64,
-            reasons=[
-                "Same AICTE Permanent ID (1-1099551122)",
-                "Active across different bureaus (PGRC and AB)",
-                "Moderate text similarity on unapproved admission charges",
-                "Related categories: Admission Irregularity and Approval/Affiliation Compliance",
-                "Date proximity: Filed within 10 days of each other"
-            ],
-            suggested_lead_bureau_id=bureau_map["AB"].id,
-            lead_suggestion_rule="RULE_INFRASTRUCTURE_APPROVAL: Admission quota norm violations governed by Approval Bureau -> AB Leads",
-            status="suggested"
-        )
-        db.add(case_link_1b)
+        # Note: CaseLink for Scenario 1b generated dynamically via ComplaintOverlapEngine below
 
         # SCENARIO 1c: Negative Case - Unrelated Complaints (Imperial College of Engineering, Chennai)
         case_1c_a = Complaint(
@@ -658,39 +766,174 @@ def seed_database():
         complaints.append(case_4)
         db.add(ActionHistory(complaint_id=case_4.id, timestamp=case_4.date_received, actor_name="SYSTEM", actor_role="CPGRAMS Gateway", bureau_code="RB", action_type="received", remarks="CPGRAMS grievance forwarded to Regulation Bureau", details={}))
 
-        # SCENARIO 6: Sunrise Institute of Technology (9 Complaints -> High Risk Score 82)
-        sunrise_cats = [
-            ("Fee Related", "High", "Under Process", 60),
-            ("Fee Related", "Critical", "Pending", 45),
-            ("Fee Related", "Medium", "Under Process", 30),
-            ("Fee Related", "Low", "Disposed", 120),
-            ("Faculty Shortage", "Critical", "Under Process", 40),
-            ("Faculty Shortage", "High", "Under Process", 25),
-            ("Faculty Shortage", "Medium", "Disposed", 90),
-            ("Fake/Unapproved Courses", "High", "Under Process", 15),
-            ("Harassment/Student Welfare", "Medium", "Under Process", 10)
+        # SCENARIO 6: Sunrise Institute of Technology (9 Complaints -> Genuine Cross-Bureau Overlaps & High Risk)
+        sunrise_cases_data = [
+            # Case 1 (idx=1): Overdue by 12 days, High priority, Under Process, Fee Related (Overlap Pair 1)
+            {
+                "case_id": "AICTE/PGRC/2026/00601",
+                "bureau_code": "PGRC",
+                "officer_email": "pgrc.officer@aicte.gov.in",
+                "category": "Fee Related",
+                "priority": "High",
+                "status": "Under Process",
+                "days_ago": 48,
+                "complainant": "Student",
+                "desc": "Student grievance regarding unauthorized annual development fee of Rs 40,000 charged without official receipts and refusal to refund caution deposit upon discontinuation.",
+                "last_act": "Explanation letter sought from management",
+                "next_act": "Hearings scheduled",
+                "is_overdue": True,
+                "exp_date": now - timedelta(days=12)
+            },
+            # Case 2 (idx=2): Overdue by 4 days, Critical priority, Pending, Approval/Affiliation Compliance (Overlap Pair 1)
+            {
+                "case_id": "AICTE/RB/2026/00602",
+                "bureau_code": "RB",
+                "officer_email": "rb.officer@aicte.gov.in",
+                "category": "Approval/Affiliation Compliance",
+                "priority": "Critical",
+                "status": "Pending",
+                "days_ago": 45,
+                "complainant": "Citizen",
+                "desc": "Regulatory show-cause inquiry into unauthorized tuition and development fee levy of Rs 40,000 beyond approved fee regulatory committee caps and non-refund of security deposits.",
+                "last_act": "Show-cause notice served to governing body",
+                "next_act": "Awaiting response",
+                "is_overdue": True,
+                "exp_date": now - timedelta(days=4)
+            },
+            # Case 3 (idx=3): Within SLA, Medium priority, Under Process, Fee Related
+            {
+                "case_id": "AICTE/PGRC/2026/00603",
+                "bureau_code": "PGRC",
+                "officer_email": "pgrc.officer@aicte.gov.in",
+                "category": "Fee Related",
+                "priority": "Medium",
+                "status": "Under Process",
+                "days_ago": 30,
+                "complainant": "Student",
+                "desc": "Grievance from M.Tech student regarding delay in stipend disbursement under AICTE PG scholarship scheme.",
+                "last_act": "Verification with finance division",
+                "next_act": "Fund reconciliation",
+                "is_overdue": False,
+                "exp_date": now + timedelta(days=5)
+            },
+            # Case 4 (idx=4): Disposed, Low priority, Fee Related
+            {
+                "case_id": "AICTE/RB/2026/00604",
+                "bureau_code": "RB",
+                "officer_email": "rb.officer@aicte.gov.in",
+                "category": "Fee Related",
+                "priority": "Low",
+                "status": "Disposed",
+                "days_ago": 120,
+                "complainant": "Parent",
+                "desc": "Disposed inquiry concerning delayed refund of hostel caution money for 2024 academic batch.",
+                "last_act": "Compliance verified and refund order executed",
+                "next_act": "Case closed",
+                "is_overdue": False,
+                "exp_date": now - timedelta(days=90)
+            },
+            # Case 5 (idx=5): Overdue by 3 days, Critical priority, Under Process, Faculty Shortage (Overlap Pair 2)
+            {
+                "case_id": "AICTE/PGRC/2026/00605",
+                "bureau_code": "PGRC",
+                "officer_email": "pgrc.officer@aicte.gov.in",
+                "category": "Faculty Shortage",
+                "priority": "Critical",
+                "status": "Under Process",
+                "days_ago": 22,
+                "complainant": "Faculty",
+                "desc": "Faculty and student complaint that Computer Science department is operating with 70 percent unqualified ad-hoc staff and severe cadre ratio deficiency for AICTE approved programs.",
+                "last_act": "Staff verification inspection deputed",
+                "next_act": "Scrutiny of faculty register",
+                "is_overdue": True,
+                "exp_date": now - timedelta(days=3)
+            },
+            # Case 6 (idx=6): Within SLA, High priority, Under Process, Faculty Shortage
+            {
+                "case_id": "AICTE/RB/2026/00606",
+                "bureau_code": "RB",
+                "officer_email": "rb.officer@aicte.gov.in",
+                "category": "Faculty Shortage",
+                "priority": "High",
+                "status": "Under Process",
+                "days_ago": 25,
+                "complainant": "Citizen",
+                "desc": "Notice issued regarding non-submission of annual biometric attendance records for Electrical engineering department.",
+                "last_act": "Compliance sought from principal",
+                "next_act": "Review biometric report",
+                "is_overdue": False,
+                "exp_date": now + timedelta(days=10)
+            },
+            # Case 7 (idx=7): Disposed, Medium priority, Faculty Shortage
+            {
+                "case_id": "AICTE/PGRC/2026/00607",
+                "bureau_code": "PGRC",
+                "officer_email": "pgrc.officer@aicte.gov.in",
+                "category": "Faculty Shortage",
+                "priority": "Medium",
+                "status": "Disposed",
+                "days_ago": 90,
+                "complainant": "Faculty",
+                "desc": "Resolved grievance regarding guest lecture honorarium in Civil engineering department.",
+                "last_act": "Payment disbursed by college bursar",
+                "next_act": "Case closed",
+                "is_overdue": False,
+                "exp_date": now - timedelta(days=60)
+            },
+            # Case 8 (idx=8): Within SLA, High priority, Under Process, Approval/Affiliation Compliance (Overlap Pair 2)
+            {
+                "case_id": "AICTE/AB/2026/00608",
+                "bureau_code": "AB",
+                "officer_email": "ab.officer@aicte.gov.in",
+                "category": "Approval/Affiliation Compliance",
+                "priority": "High",
+                "status": "Under Process",
+                "days_ago": 20,
+                "complainant": "Citizen",
+                "desc": "Approval Bureau inspection regarding cadre ratio deficiencies, severe faculty vacancy exceeding 70 percent in technical courses, and violation of sanctioned intake approval norms.",
+                "last_act": "Approval Bureau team inspection conducted",
+                "next_act": "Preparation of deficiency notice",
+                "is_overdue": False,
+                "exp_date": now + timedelta(days=15)
+            },
+            # Case 9 (idx=9): Within SLA, Medium priority, Under Process, Harassment/Student Welfare
+            {
+                "case_id": "AICTE/PGRC/2026/00609",
+                "bureau_code": "PGRC",
+                "officer_email": "pgrc.officer@aicte.gov.in",
+                "category": "Harassment/Student Welfare",
+                "priority": "Medium",
+                "status": "Under Process",
+                "days_ago": 10,
+                "complainant": "Student",
+                "desc": "Student representation regarding hostel mess hygiene and lack of clean drinking water facilities.",
+                "last_act": "Warden response requested",
+                "next_act": "Health inspection check",
+                "is_overdue": False,
+                "exp_date": now + timedelta(days=25)
+            }
         ]
 
         sunrise_cases = []
-        for idx, (cat, prio, st, days_ago) in enumerate(sunrise_cats, start=1):
+        for cdata in sunrise_cases_data:
             s_case = Complaint(
-                case_id=f"AICTE/RB/2026/0060{idx}",
+                case_id=cdata["case_id"],
                 institution_id=inst_sunrise.id,
                 raw_institution_name="Sunrise Institute of Technology & Management",
                 source="Portal",
-                category=cat,
-                description=f"Serious issue regarding {cat.lower()} at Sunrise Institute campus affecting enrolled students.",
-                complainant_type="Student" if idx % 2 == 0 else "Faculty",
-                date_received=now - timedelta(days=days_ago),
-                status=st,
-                assigned_bureau_id=bureau_map["RB"].id if idx % 2 == 0 else bureau_map["PGRC"].id,
-                assigned_officer_id=officer_map["rb.officer@aicte.gov.in"].id if idx % 2 == 0 else officer_map["pgrc.officer@aicte.gov.in"].id,
-                last_action="Inquiry underway",
-                next_action="Hearings scheduled",
-                last_action_date=now - timedelta(days=max(1, days_ago - 5)),
-                expected_disposal_date=now - timedelta(days=days_ago - 30),
-                priority=prio,
-                is_overdue=days_ago > 30 and st != "Disposed",
+                category=cdata["category"],
+                description=cdata["desc"],
+                complainant_type=cdata["complainant"],
+                date_received=now - timedelta(days=cdata["days_ago"]),
+                status=cdata["status"],
+                assigned_bureau_id=bureau_map[cdata["bureau_code"]].id,
+                assigned_officer_id=officer_map[cdata["officer_email"]].id,
+                last_action=cdata["last_act"],
+                next_action=cdata["next_act"],
+                last_action_date=now - timedelta(days=max(1, cdata["days_ago"] - 5)),
+                expected_disposal_date=cdata["exp_date"],
+                priority=cdata["priority"],
+                is_overdue=cdata["is_overdue"],
                 is_escalated=False,
                 match_confidence=1.0,
                 needs_institution_review=False,
@@ -700,31 +943,16 @@ def seed_database():
             db.flush()
             sunrise_cases.append(s_case)
             complaints.append(s_case)
-            db.add(ActionHistory(complaint_id=s_case.id, timestamp=s_case.date_received, actor_name="SYSTEM", actor_role="Intake Portal", bureau_code="RB" if idx % 2 == 0 else "PGRC", action_type="received", remarks=f"Complaint received for {cat}", details={}))
-
-        # Seed 2 unresolved overlaps for Sunrise Institute
-        link_s1 = CaseLink(
-            case_a_id=sunrise_cases[0].id,
-            case_b_id=sunrise_cases[1].id,
-            institution_id=inst_sunrise.id,
-            similarity_score=0.86,
-            reasons=["Same AICTE Permanent ID", "High text similarity regarding illegal fee hikes", "Same category"],
-            suggested_lead_bureau_id=bureau_map["PGRC"].id,
-            lead_suggestion_rule="RULE_INDIVIDUAL_GRIEVANCE: Student fee dispute -> PGRC Leads",
-            status="suggested"
-        )
-        link_s2 = CaseLink(
-            case_a_id=sunrise_cases[4].id,
-            case_b_id=sunrise_cases[7].id,
-            institution_id=inst_sunrise.id,
-            similarity_score=0.89,
-            reasons=["Same AICTE Permanent ID", "Cross-bureau inquiry on unapproved faculty & course approval", "Related regulatory categories"],
-            suggested_lead_bureau_id=bureau_map["RB"].id,
-            lead_suggestion_rule="RULE_STATUTORY_REGULATORY: Unapproved course scrutiny -> RB Leads",
-            status="suggested"
-        )
-        db.add(link_s1)
-        db.add(link_s2)
+            db.add(ActionHistory(
+                complaint_id=s_case.id,
+                timestamp=s_case.date_received,
+                actor_name="SYSTEM",
+                actor_role="Intake Portal",
+                bureau_code=cdata["bureau_code"],
+                action_type="received",
+                remarks=f"Complaint received for {cdata['category']}",
+                details={}
+            ))
 
         # ---------------------------------------------------------
         # 6. Generate Remaining Complaints to reach exactly 450
@@ -740,21 +968,55 @@ def seed_database():
             "1-1099882233",  # Sunrise Lucknow (Scenario 6)
             "1-1099551122",  # Global Mumbai (Scenario 1b)
             "1-1099553344",  # Imperial Chennai (Scenario 1c)
+            "1-1099667788",  # Premier Pune (Resolution test fixture)
+            "1-1099667799",  # NEA Delhi (Resolution test fixture)
         }
         general_institutions = [i for i in institutions if i.permanent_id not in fixture_perm_ids]
 
         bureaus_list = list(bureau_map.values())
         officers_list = list(officer_map.values())
 
+        # Deterministic seed for reproducible dataset metrics
+        random.seed(42)
+
+        # Realistic distribution for remaining 432 complaints:
+        # - 210 Disposed (~48.6%) -> Disposed cases NEVER overdue
+        # - 105 Pending (~24.3%)
+        # - 105 Under Process (~24.3%)
+        # - 6 Escalated (~1.4%)
+        # - 6 Transferred (~1.4%)
+        planned_statuses = (
+            ["Disposed"] * 209 +
+            ["Pending"] * 105 +
+            ["Under Process"] * 105 +
+            ["Escalated"] * 6 +
+            ["Transferred"] * 6
+        )
+        random.shuffle(planned_statuses)
+
+        # Out of open cases (210), partition into realistic operational categories:
+        # - 5 deeply overdue (8-18 days overdue >= 7), un-escalated -> will auto-escalate on first SLA run
+        # - 23 moderate overdue (1-6 days overdue < 7) -> overdue but will NOT auto-escalate
+        # - 15 due soon (due in 1-4 days)
+        # - Remaining open cases well within SLA
+        open_pending_under_process = [idx for idx, st in enumerate(planned_statuses) if st in ["Pending", "Under Process"]]
+        deeply_overdue_indices = set(random.sample(open_pending_under_process, 5))
+        rem_open = [idx for idx in open_pending_under_process if idx not in deeply_overdue_indices]
+        moderate_overdue_indices = set(random.sample(rem_open, 23))
+        rem_open2 = [idx for idx in rem_open if idx not in moderate_overdue_indices]
+        due_soon_indices = set(random.sample(rem_open2, 15))
+
         case_num = 1000
-        while len(complaints) < 450:
+        for i, st in enumerate(planned_statuses):
             case_num += 1
             inst = random.choice(general_institutions)
             cat = random.choice(COMPLAINT_CATEGORIES)
-            prio = random.choices(PRIORITIES, weights=[0.2, 0.5, 0.25, 0.05])[0]
-            st = random.choices(STATUSES, weights=[0.25, 0.40, 0.25, 0.05, 0.05])[0]
-            days_ago = random.randint(1, 400)
-            date_rec = now - timedelta(days=days_ago)
+            prio = random.choices(PRIORITIES, weights=[0.15, 0.55, 0.25, 0.05])[0]
+
+            # Calculate base SLA target
+            base_days = 30
+            prio_mult = 1.0 if prio == "Medium" else (0.7 if prio == "High" else (0.4 if prio == "Critical" else 1.5))
+            target_days = int(base_days * prio_mult)
 
             # Determine bureau assignment based on category realistically
             if cat in ["Approval/Affiliation Compliance", "Fake/Unapproved Courses"]:
@@ -766,15 +1028,87 @@ def seed_database():
             else:
                 bureau = random.choice(bureaus_list)
 
-            # Expected disposal calculation
-            base_days = 30
-            prio_mult = 1.0 if prio == "Medium" else (0.7 if prio == "High" else (0.4 if prio == "Critical" else 1.5))
-            target_days = int(base_days * prio_mult)
-            exp_date = date_rec + timedelta(days=target_days)
-            is_od = (now > exp_date) and (st not in ["Disposed", "Transferred"])
+            # Assign dates based on status and overdue designation
+            if st == "Disposed":
+                days_ago = random.randint(30, 360)
+                date_rec = now - timedelta(days=days_ago)
+                resolution_days = min(days_ago - 2, random.randint(12, 35))
+                last_act_date = date_rec + timedelta(days=resolution_days)
+                exp_date = date_rec + timedelta(days=target_days)
+                is_od = False  # Disposed cases must NEVER count as overdue
+                is_esc = False
+                last_act = "Grievance resolved and formal disposal order issued"
+                next_act = "Case closed - archiving records"
+            elif st == "Transferred":
+                days_ago = random.randint(10, 45)
+                date_rec = now - timedelta(days=days_ago)
+                last_act_date = date_rec + timedelta(days=4)
+                exp_date = date_rec + timedelta(days=target_days)
+                is_od = False
+                is_esc = False
+                last_act = "Case jurisdiction transferred to State Technical Directorate"
+                next_act = "Awaiting state action report"
+            elif st == "Escalated":
+                # Seeded as already escalated in historical records
+                days_ago = random.randint(40, 75)
+                date_rec = now - timedelta(days=days_ago)
+                exp_date = date_rec + timedelta(days=target_days)
+                last_act_date = date_rec + timedelta(days=random.randint(20, 35))
+                is_od = True
+                is_esc = True
+                last_act = "Escalated to Senior Management"
+                next_act = "Senior Management hearing scheduled"
+            elif i in deeply_overdue_indices:
+                # 5 cases deeply overdue (8 to 18 days overdue >= 7), un-escalated
+                # Ready to be auto-escalated on first SLA run!
+                days_overdue = random.randint(8, 18)
+                days_ago = target_days + days_overdue
+                date_rec = now - timedelta(days=days_ago)
+                exp_date = date_rec + timedelta(days=target_days)
+                last_act_date = date_rec + timedelta(days=random.randint(5, target_days))
+                is_od = True
+                is_esc = False
+                last_act = "Hearing notice issued - prolonged compliance overdue"
+                next_act = "Pending statutory escalation review"
+            elif i in moderate_overdue_indices:
+                # 23 cases 1 to 6 days overdue (< 7 threshold)
+                # Overdue, but NOT auto-escalated by SLA run!
+                days_overdue = random.randint(1, 6)
+                days_ago = target_days + days_overdue
+                date_rec = now - timedelta(days=days_ago)
+                exp_date = date_rec + timedelta(days=target_days)
+                last_act_date = date_rec + timedelta(days=random.randint(3, target_days))
+                is_od = True
+                is_esc = False
+                last_act = "First SLA breach reminder dispatched"
+                next_act = "Awaiting compliance within grace period"
+            elif i in due_soon_indices:
+                # 15 cases due soon (in 1 to 4 days)
+                days_left = random.randint(1, 4)
+                days_ago = max(2, target_days - days_left)
+                date_rec = now - timedelta(days=days_ago)
+                exp_date = date_rec + timedelta(days=target_days)
+                last_act_date = date_rec + timedelta(days=min(3, days_ago))
+                is_od = False
+                is_esc = False
+                last_act = "Drafting disposal recommendation"
+                next_act = "Final disposal review due soon"
+            else:
+                # Regular open non-overdue complaint: received recently, well within SLA
+                days_ago = random.randint(2, max(3, target_days - 8))
+                date_rec = now - timedelta(days=days_ago)
+                exp_date = date_rec + timedelta(days=target_days)
+                last_act_date = date_rec + timedelta(days=min(3, days_ago))
+                is_od = False
+                is_esc = False
+                last_act = "Scrutiny note recorded"
+                next_act = "Awaiting institutional clarification"
 
             b_code = bureau.code
             case_id = f"AICTE/{b_code}/2025/{case_num:05d}" if days_ago > 90 else f"AICTE/{b_code}/2026/{case_num:05d}"
+
+            cat_desc_list = CATEGORY_DESCRIPTION_TEMPLATES.get(cat, ["Grievance filed alleging non-compliance with regulations."])
+            desc_text = random.choice(cat_desc_list)
 
             complaint = Complaint(
                 case_id=case_id,
@@ -782,19 +1116,19 @@ def seed_database():
                 raw_institution_name=inst.name,
                 source=random.choice(SOURCES),
                 category=cat,
-                description=f"Grievance filed regarding {cat.lower()} at {inst.name}. Complainant alleges non-compliance with AICTE regulations.",
+                description=desc_text,
                 complainant_type=random.choice(COMPLAINANT_TYPES),
                 date_received=date_rec,
                 status=st,
                 assigned_bureau_id=bureau.id,
                 assigned_officer_id=random.choice(officers_list).id,
-                last_action="Scrutiny note recorded",
-                next_action="Awaiting institutional clarification" if st != "Disposed" else "Disposal letter issued",
-                last_action_date=date_rec + timedelta(days=min(10, days_ago)),
+                last_action=last_act,
+                next_action=next_act,
+                last_action_date=last_act_date,
                 expected_disposal_date=exp_date,
                 priority=prio,
                 is_overdue=is_od,
-                is_escalated=st == "Escalated",
+                is_escalated=is_esc,
                 match_confidence=1.0,
                 needs_institution_review=False,
                 candidate_institutions=[]
@@ -817,6 +1151,83 @@ def seed_database():
 
         db.commit()
         print(f"[OK] Seeded {len(complaints)} Complaints with ActionHistory audit logs.")
+
+        # ---------------------------------------------------------
+        # 7. Generate CaseLinks Dynamically via ComplaintOverlapEngine
+        # ---------------------------------------------------------
+        print("[*] Running ComplaintOverlapEngine to dynamically generate all CaseLinks...")
+        overlap_engine = ComplaintOverlapEngine()
+        overlap_engine.initialize_from_db(db)
+        lead_bureau_engine = LeadBureauEngine()
+
+        open_statuses = ["Pending", "Under Process", "Escalated"]
+        open_complaints = db.query(Complaint).filter(Complaint.status.in_(open_statuses)).all()
+        by_inst = {}
+        for c in open_complaints:
+            if c.institution_id:
+                by_inst.setdefault(c.institution_id, []).append(c)
+
+        created_links_count = 0
+        for inst_id, c_list in by_inst.items():
+            n = len(c_list)
+            for i in range(n):
+                for j in range(i + 1, n):
+                    c1 = c_list[i]
+                    c2 = c_list[j]
+                    if c1.assigned_bureau_id == c2.assigned_bureau_id:
+                        continue
+                    ca, cb = (c1, c2) if c1.id < c2.id else (c2, c1)
+                    res = overlap_engine.evaluate_overlap(ca, cb, db=db)
+                    if res.is_overlap and res.score >= 0.60:
+                        lead_rec = lead_bureau_engine.suggest_lead(ca, cb)
+                        new_link = CaseLink(
+                            case_a_id=ca.id,
+                            case_b_id=cb.id,
+                            institution_id=inst_id,
+                            similarity_score=res.score,
+                            signals=res.signals,
+                            reasons=res.reasons,
+                            suggested_lead_bureau_id=lead_rec.lead_bureau_id,
+                            lead_suggestion_rule=f"{lead_rec.rule_id}: {lead_rec.rule_description}",
+                            status="suggested"
+                        )
+                        db.add(new_link)
+                        db.flush()
+                        created_links_count += 1
+
+                        band_label = "Strong" if res.band == "STRONG_OVERLAP" else "Possible"
+                        severity = "critical" if res.band == "STRONG_OVERLAP" else "warning"
+                        alert_msg = (
+                            f"{band_label} Inter-Bureau Overlap detected between {ca.case_id} "
+                            f"({ca.assigned_bureau.code if ca.assigned_bureau else 'Bureau'}) and "
+                            f"{cb.case_id} ({cb.assigned_bureau.code if cb.assigned_bureau else 'Bureau'}) "
+                            f"at '{ca.institution.name if ca.institution else 'Institution'}' "
+                            f"(Score: {res.score:.2f}). Suggested Lead: {lead_rec.lead_bureau_code}."
+                        )
+                        created_time = max(ca.date_received, cb.date_received)
+                        db.add(Alert(
+                            type="overlap",
+                            complaint_id=ca.id,
+                            institution_id=inst_id,
+                            message=alert_msg,
+                            severity=severity,
+                            target_bureau_id=ca.assigned_bureau_id,
+                            is_read=False,
+                            created_at=created_time
+                        ))
+                        db.add(Alert(
+                            type="overlap",
+                            complaint_id=cb.id,
+                            institution_id=inst_id,
+                            message=alert_msg,
+                            severity=severity,
+                            target_bureau_id=cb.assigned_bureau_id,
+                            is_read=False,
+                            created_at=created_time
+                        ))
+
+        db.commit()
+        print(f"[OK] Dynamically generated {created_links_count} genuine CaseLink linkages with real signals and explainable reasons.")
         print("[SUCCESS] Master synthetic database successfully initialized at data/aicte_portal.db")
         print("=" * 60)
 

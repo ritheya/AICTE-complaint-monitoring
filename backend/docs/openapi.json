@@ -1,0 +1,3372 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AICTE Integrated Institution Complaint Monitoring and Coordination Portal",
+    "description": "Multi-bureau grievance coordination, automated overlap detection, and institutional risk intelligence API.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Login",
+        "description": "Authenticates AICTE officer credentials using bcrypt.\nEnforces login rate limiting and returns signed PyJWT access token.\nGeneric error message returned on failure for security.",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Login For Access Token",
+        "description": "OAuth2 compatible token login for Swagger UI (/docs) Authorize button.\nAccepts application/x-www-form-urlencoded form data with username (email) and password.\nShares identical bcrypt verification, rate limiting, and generic error message.",
+        "operationId": "login_for_access_token_auth_token_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_for_access_token_auth_token_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get Current Officer Profile",
+        "description": "Returns public profile of currently authenticated AICTE officer.",
+        "operationId": "get_current_officer_profile_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfficerResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/complaints": {
+      "get": {
+        "tags": [
+          "Complaints"
+        ],
+        "summary": "List Complaints",
+        "description": "Lists complaints with multi-parameter filtering, pagination, and RBAC scoping:\n- Regional Officers are automatically scoped to their designated geographic region.\n- Bureau Officers default to their assigned bureau (can be filtered).\n- Senior Management and Admin possess global read-all access across all records.",
+        "operationId": "list_complaints_complaints_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bureau_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bureau Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 25,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ComplaintResponse"
+                  },
+                  "title": "Response List Complaints Complaints Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Complaints"
+        ],
+        "summary": "Create Complaint",
+        "description": "Ingests a new complaint into the AICTE portal:\n1. Runs InstitutionResolutionEngine (Auto-link or flag Needs Review).\n2. Calculates priority-adjusted SLA target disposal date.\n3. Persists complaint and records initial ActionHistory audit entry.\n4. Automatically runs overlap detection if resolved and creates CaseLink + Alerts.",
+        "operationId": "create_complaint_complaints_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/complaints/{complaint_id}": {
+      "get": {
+        "tags": [
+          "Complaints"
+        ],
+        "summary": "Get Complaint Details",
+        "description": "Returns full details for a complaint including chronological action history audit trail.\nVerifies regional scoping for Regional Officers.",
+        "operationId": "get_complaint_details_complaints__complaint_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "complaint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Complaint Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Complaints"
+        ],
+        "summary": "Update Complaint",
+        "description": "Updates status, priority, or remarks for a complaint.\nEnforces Item 5: Officers may modify only complaints assigned to their own bureau.",
+        "operationId": "update_complaint_complaints__complaint_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "complaint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Complaint Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/complaints/{complaint_id}/transfer": {
+      "post": {
+        "tags": [
+          "Complaints"
+        ],
+        "summary": "Transfer Complaint",
+        "description": "Transfers complaint to another bureau with an immutable audit log.\nEnforces Item 5: Restricted to the assigning bureau, Admin, or Senior Management.",
+        "operationId": "transfer_complaint_complaints__complaint_id__transfer_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "complaint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Complaint Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintTransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/complaints/{complaint_id}/escalate": {
+      "post": {
+        "tags": [
+          "Complaints"
+        ],
+        "summary": "Escalate Complaint",
+        "description": "Escalates complaint to Senior Management with mandatory audit log.\nRaises critical alert for leadership.",
+        "operationId": "escalate_complaint_complaints__complaint_id__escalate_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "complaint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Complaint Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintEscalateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/complaints/{complaint_id}/confirm-institution": {
+      "post": {
+        "tags": [
+          "Complaints"
+        ],
+        "summary": "Confirm Institution",
+        "description": "Confirms candidate institution match for complaints flagged for human review.\nEnforces Item 3: Automatically runs overlap detection and creates CaseLink + Alerts.",
+        "operationId": "confirm_institution_complaints__complaint_id__confirm_institution_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "complaint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Complaint Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmInstitutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/intake/extract": {
+      "post": {
+        "tags": [
+          "Live Intake"
+        ],
+        "summary": "Extract Complaint Metadata",
+        "description": "Extracts structured governance metadata from raw complaint text:\n- Extracts AICTE Permanent ID (format: 1-XXXXXXXXX).\n- Extracts 6-digit postal pincodes.\n- Resolves grievance category via concept normalization.\n- Evaluates priority urgency signals.",
+        "operationId": "extract_complaint_metadata_intake_extract_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/intake/precheck": {
+      "post": {
+        "tags": [
+          "Live Intake"
+        ],
+        "summary": "Live Intake Precheck",
+        "description": "Scenario 5: Real-time complaint intake pre-check.\nEnforces Item 5 & Item 8:\n1. Runs InstitutionResolutionEngine (AUTO_LINK, NEEDS_REVIEW, or UNRESOLVED).\n2. If AUTO_LINK: runs overlap check against active cases at the resolved institution.\n3. If NEEDS_REVIEW: runs overlap check against the top candidate institution,\n   labelled 'provisional, institution not confirmed' (is_provisional = True).\n4. If UNRESOLVED: returns no overlaps with explicit explanation.\n5. STRICTLY DOES NOT PERSIST ANY ROWS TO THE DATABASE.",
+        "operationId": "live_intake_precheck_intake_precheck_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LivePrecheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivePrecheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/institutions/leaderboard/risk": {
+      "get": {
+        "tags": [
+          "Institutions"
+        ],
+        "summary": "Get Risk Leaderboard",
+        "description": "Dynamic Institutional Risk Leaderboard (Scenario 6).\nEvaluates institutions based on dynamic 5-component scoring computed from live DB records:\n1. Complaint Volume (last 24m)\n2. Pending Ratio\n3. Severity Penalty\n4. Repeat Categories Penalty\n5. Unresolved Overlaps Penalty\nRanks institutions strictly by computed DB data without bias or hardcoding.",
+        "operationId": "get_risk_leaderboard_institutions_leaderboard_risk_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstitutionLeaderboardItem"
+                  },
+                  "title": "Response Get Risk Leaderboard Institutions Leaderboard Risk Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institutions": {
+      "get": {
+        "tags": [
+          "Institutions"
+        ],
+        "summary": "List Institutions",
+        "description": "Lists canonical institutions with optional search, region, state, and risk-band filtering.",
+        "operationId": "list_institutions_institutions_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search by institution name or Permanent ID",
+              "title": "Search"
+            },
+            "description": "Search by institution name or Permanent ID"
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by AICTE regional office jurisdiction",
+              "title": "Region"
+            },
+            "description": "Filter by AICTE regional office jurisdiction"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Indian State",
+              "title": "State"
+            },
+            "description": "Filter by Indian State"
+          },
+          {
+            "name": "risk_band",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Low, Moderate, High risk",
+              "title": "Risk Band"
+            },
+            "description": "Filter by Low, Moderate, High risk"
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstitutionResponse"
+                  },
+                  "title": "Response List Institutions Institutions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institutions/{institution_id}": {
+      "get": {
+        "tags": [
+          "Institutions"
+        ],
+        "summary": "Get Institution",
+        "description": "Retrieves full details of an institution including dynamically evaluated risk breakdown.",
+        "operationId": "get_institution_institutions__institution_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Institution Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/institutions/{institution_id}/summary": {
+      "get": {
+        "tags": [
+          "Institutions"
+        ],
+        "summary": "Get Institution Executive Summary",
+        "description": "Generates an executive complaint briefing for the institution, grounded strictly in\nhistorical grievance volume, active inter-bureau overlaps, and risk factor breakdown.",
+        "operationId": "get_institution_executive_summary_institutions__institution_id__summary_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Institution Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/overlaps": {
+      "get": {
+        "tags": [
+          "Inter-Bureau Overlaps"
+        ],
+        "summary": "List Overlaps",
+        "description": "Lists cross-bureau overlap linkages.\nEnforces regional scoping for Regional Officers.",
+        "operationId": "list_overlaps_overlaps_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "suggested, approved, rejected, needs_discussion, related_only",
+              "title": "Status"
+            },
+            "description": "suggested, approved, rejected, needs_discussion, related_only"
+          },
+          {
+            "name": "institution_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter overlaps for specific institution",
+              "title": "Institution Id"
+            },
+            "description": "Filter overlaps for specific institution"
+          },
+          {
+            "name": "bureau_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter overlaps involving specific bureau",
+              "title": "Bureau Id"
+            },
+            "description": "Filter overlaps involving specific bureau"
+          },
+          {
+            "name": "min_score",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 1.0,
+                  "minimum": 0.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum overlap similarity score",
+              "title": "Min Score"
+            },
+            "description": "Minimum overlap similarity score"
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CaseLinkResponse"
+                  },
+                  "title": "Response List Overlaps Overlaps Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/overlaps/{link_id}": {
+      "get": {
+        "tags": [
+          "Inter-Bureau Overlaps"
+        ],
+        "summary": "Get Overlap",
+        "description": "Retrieves full details of a specific inter-bureau case linkage.",
+        "operationId": "get_overlap_overlaps__link_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Link Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseLinkResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/overlaps/{link_id}/decision": {
+      "post": {
+        "tags": [
+          "Inter-Bureau Overlaps"
+        ],
+        "summary": "Decide Overlap",
+        "description": "Records an official officer decision on an inter-bureau overlap alert:\n- Supported decisions: approved, rejected, needs_discussion, related_only.\n- Sets designated final lead bureau if approved.\n- Automatically appends audit history entries on BOTH involved complaint cases.",
+        "operationId": "decide_overlap_overlaps__link_id__decision_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Link Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverlapDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseLinkResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts": {
+      "get": {
+        "tags": [
+          "System Alerts"
+        ],
+        "summary": "List Alerts",
+        "description": "Lists system notifications, SLA warning triggers, and overlap alerts.\nFilters by user's assigned bureau for bureau-level officers.\nReturns pagination metadata including total matching count.",
+        "operationId": "list_alerts_alerts_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unread_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Filter for unacknowledged alerts",
+              "default": false,
+              "title": "Unread Only"
+            },
+            "description": "Filter for unacknowledged alerts"
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "info, warning, critical",
+              "title": "Severity"
+            },
+            "description": "info, warning, critical"
+          },
+          {
+            "name": "alert_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "overlap, escalation, sla_due_soon, sla_breached, pending_reminder",
+              "title": "Alert Type"
+            },
+            "description": "overlap, escalation, sla_due_soon, sla_breached, pending_reminder"
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedAlertResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts/{alert_id}/read": {
+      "patch": {
+        "tags": [
+          "System Alerts"
+        ],
+        "summary": "Mark Alert Read",
+        "description": "Marks an operational alert notification as read/acknowledged.",
+        "operationId": "mark_alert_read_alerts__alert_id__read_patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scheduler/run-sla-check": {
+      "post": {
+        "tags": [
+          "Scheduler"
+        ],
+        "summary": "Trigger Sla Check",
+        "description": "On-demand execution of the AICTE statutory SLA compliance evaluation.\n- Restricted to Admin and Senior Management.\n- Evaluates every open complaint dynamically without hardcoding.\n- Flags overdue cases and auto-escalates cases exceeding prolonged SLA threshold.\n- Guaranteed idempotent: running multiple times does not produce duplicate alerts or escalations.",
+        "operationId": "trigger_sla_check_scheduler_run_sla_check_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Trigger Sla Check Scheduler Run Sla Check Post"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/scheduler/status": {
+      "get": {
+        "tags": [
+          "Scheduler"
+        ],
+        "summary": "Get Scheduler Status",
+        "description": "Returns current health and operational status of the APScheduler background worker.",
+        "operationId": "get_scheduler_status_scheduler_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Scheduler Status Scheduler Status Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/dashboard/summary": {
+      "get": {
+        "tags": [
+          "Dashboard Analytics"
+        ],
+        "summary": "Get Dashboard Summary",
+        "description": "High-level operational and statutory KPI statistics:\nTotal, Pending, Under Process, Disposed, Escalated, Overdue, Active Overlaps, and High Risk Institutions.",
+        "operationId": "get_dashboard_summary_dashboard_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/dashboard/bureau-workload": {
+      "get": {
+        "tags": [
+          "Dashboard Analytics"
+        ],
+        "summary": "Get Bureau Workload",
+        "description": "Workload distribution and throughput per bureau.",
+        "operationId": "get_bureau_workload_dashboard_bureau_workload_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BureauWorkloadItem"
+                  },
+                  "type": "array",
+                  "title": "Response Get Bureau Workload Dashboard Bureau Workload Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/dashboard/region-wise": {
+      "get": {
+        "tags": [
+          "Dashboard Analytics"
+        ],
+        "summary": "Get Region Wise Metrics",
+        "description": "Grievance volume and high-risk institutions distribution across geographic regions.",
+        "operationId": "get_region_wise_metrics_dashboard_region_wise_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RegionWiseItem"
+                  },
+                  "type": "array",
+                  "title": "Response Get Region Wise Metrics Dashboard Region Wise Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/dashboard/category-wise": {
+      "get": {
+        "tags": [
+          "Dashboard Analytics"
+        ],
+        "summary": "Get Category Wise Metrics",
+        "description": "Category distribution across all complaints.",
+        "operationId": "get_category_wise_metrics_dashboard_category_wise_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryWiseItem"
+                  },
+                  "type": "array",
+                  "title": "Response Get Category Wise Metrics Dashboard Category Wise Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/dashboard/ageing": {
+      "get": {
+        "tags": [
+          "Dashboard Analytics"
+        ],
+        "summary": "Get Ageing Distribution",
+        "description": "Case ageing distribution across open grievances (<15d, 15-30d, 30-60d, >60d).",
+        "operationId": "get_ageing_distribution_dashboard_ageing_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgeingBracketItem"
+                  },
+                  "type": "array",
+                  "title": "Response Get Ageing Distribution Dashboard Ageing Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/dashboard/monthly-trend": {
+      "get": {
+        "tags": [
+          "Dashboard Analytics"
+        ],
+        "summary": "Get Monthly Trend",
+        "description": "Monthly complaint intake vs disposal velocity for the past 6 months.",
+        "operationId": "get_monthly_trend_dashboard_monthly_trend_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MonthlyTrendItem"
+                  },
+                  "type": "array",
+                  "title": "Response Get Monthly Trend Dashboard Monthly Trend Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "description": "Service health verification endpoint.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActionHistoryResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "actor_name": {
+            "type": "string",
+            "title": "Actor Name"
+          },
+          "actor_role": {
+            "type": "string",
+            "title": "Actor Role"
+          },
+          "bureau_code": {
+            "type": "string",
+            "title": "Bureau Code"
+          },
+          "action_type": {
+            "type": "string",
+            "title": "Action Type"
+          },
+          "remarks": {
+            "type": "string",
+            "title": "Remarks"
+          },
+          "attachment_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachment Name"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "timestamp",
+          "actor_name",
+          "actor_role",
+          "bureau_code",
+          "action_type",
+          "remarks"
+        ],
+        "title": "ActionHistoryResponse",
+        "description": "Immutable audit trail entry for case lifecycle actions."
+      },
+      "ActiveOverlapAlert": {
+        "properties": {
+          "existing_case_id": {
+            "type": "string",
+            "title": "Existing Case Id"
+          },
+          "existing_case_bureau": {
+            "type": "string",
+            "title": "Existing Case Bureau"
+          },
+          "existing_category": {
+            "type": "string",
+            "title": "Existing Category"
+          },
+          "overlap_score": {
+            "type": "number",
+            "title": "Overlap Score"
+          },
+          "band": {
+            "type": "string",
+            "title": "Band"
+          },
+          "signals": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Signals"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "suggested_lead_bureau": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Lead Bureau"
+          },
+          "lead_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Rule"
+          },
+          "is_provisional": {
+            "type": "boolean",
+            "title": "Is Provisional",
+            "default": false
+          },
+          "provisional_notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provisional Notice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "existing_case_id",
+          "existing_case_bureau",
+          "existing_category",
+          "overlap_score",
+          "band",
+          "signals",
+          "reasons"
+        ],
+        "title": "ActiveOverlapAlert",
+        "description": "Pre-check overlap alert with an existing active case at the resolved institution."
+      },
+      "AgeingBracketItem": {
+        "properties": {
+          "bracket": {
+            "type": "string",
+            "title": "Bracket"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bracket",
+          "count"
+        ],
+        "title": "AgeingBracketItem",
+        "description": "Case ageing distribution."
+      },
+      "AlertResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "complaint_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complaint Id"
+          },
+          "institution_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "target_bureau_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Bureau Id"
+          },
+          "is_read": {
+            "type": "boolean",
+            "title": "Is Read"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "message",
+          "severity",
+          "is_read",
+          "created_at"
+        ],
+        "title": "AlertResponse",
+        "description": "Notification record for overlaps, SLA breaches, and reminders."
+      },
+      "Body_login_for_access_token_auth_token_post": {
+        "properties": {
+          "grant_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^password$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Type"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "title": "Password"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": ""
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "format": "password",
+            "title": "Client Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Body_login_for_access_token_auth_token_post"
+      },
+      "BureauWorkloadItem": {
+        "properties": {
+          "bureau_id": {
+            "type": "integer",
+            "title": "Bureau Id"
+          },
+          "bureau_code": {
+            "type": "string",
+            "title": "Bureau Code"
+          },
+          "bureau_name": {
+            "type": "string",
+            "title": "Bureau Name"
+          },
+          "total_complaints": {
+            "type": "integer",
+            "title": "Total Complaints"
+          },
+          "pending_complaints": {
+            "type": "integer",
+            "title": "Pending Complaints"
+          },
+          "overdue_complaints": {
+            "type": "integer",
+            "title": "Overdue Complaints"
+          },
+          "disposed_complaints": {
+            "type": "integer",
+            "title": "Disposed Complaints"
+          },
+          "avg_resolution_days": {
+            "type": "number",
+            "title": "Avg Resolution Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bureau_id",
+          "bureau_code",
+          "bureau_name",
+          "total_complaints",
+          "pending_complaints",
+          "overdue_complaints",
+          "disposed_complaints",
+          "avg_resolution_days"
+        ],
+        "title": "BureauWorkloadItem",
+        "description": "Workload distribution per bureau."
+      },
+      "CaseLinkResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "case_a_id": {
+            "type": "integer",
+            "title": "Case A Id"
+          },
+          "case_b_id": {
+            "type": "integer",
+            "title": "Case B Id"
+          },
+          "institution_id": {
+            "type": "integer",
+            "title": "Institution Id"
+          },
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score"
+          },
+          "signals": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Signals"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "suggested_lead_bureau_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Lead Bureau Id"
+          },
+          "lead_suggestion_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Suggestion Rule"
+          },
+          "final_lead_bureau_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Lead Bureau Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "suggested",
+              "approved",
+              "rejected",
+              "needs_discussion",
+              "related_only"
+            ],
+            "title": "Status"
+          },
+          "decided_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Id"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decision_remarks": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Remarks"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "case_a_case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case A Case Id"
+          },
+          "case_b_case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case B Case Id"
+          },
+          "institution_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Name"
+          },
+          "suggested_lead_bureau_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Lead Bureau Code"
+          },
+          "final_lead_bureau_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Lead Bureau Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "case_a_id",
+          "case_b_id",
+          "institution_id",
+          "similarity_score",
+          "status",
+          "created_at"
+        ],
+        "title": "CaseLinkResponse",
+        "description": "Inter-bureau overlap linkage record between two complaints."
+      },
+      "CategoryWiseItem": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "percentage": {
+            "type": "number",
+            "title": "Percentage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "count",
+          "percentage"
+        ],
+        "title": "CategoryWiseItem",
+        "description": "Category breakdown across complaints."
+      },
+      "ComplaintCreate": {
+        "properties": {
+          "raw_institution_name": {
+            "type": "string",
+            "title": "Raw Institution Name",
+            "description": "Institution name as stated by complainant"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "Intake channel: Portal, CPGRAMS, Email, Letter",
+            "default": "Portal"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Complaint category"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Detailed grievance description"
+          },
+          "complainant_type": {
+            "type": "string",
+            "title": "Complainant Type",
+            "description": "Student, Faculty, Parent, Citizen",
+            "default": "Student"
+          },
+          "priority": {
+            "type": "string",
+            "title": "Priority",
+            "description": "Low, Medium, High, Critical",
+            "default": "Medium"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "pincode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pincode"
+          },
+          "permanent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permanent Id"
+          },
+          "assigned_bureau_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Bureau Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_institution_name",
+          "category",
+          "description"
+        ],
+        "title": "ComplaintCreate",
+        "description": "Payload to register a new complaint."
+      },
+      "ComplaintEscalateRequest": {
+        "properties": {
+          "remarks": {
+            "type": "string",
+            "title": "Remarks",
+            "description": "Escalation rationale for audit history"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remarks"
+        ],
+        "title": "ComplaintEscalateRequest",
+        "description": "Payload to escalate a complaint to Senior Management."
+      },
+      "ComplaintResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "institution_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Id"
+          },
+          "raw_institution_name": {
+            "type": "string",
+            "title": "Raw Institution Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "complainant_type": {
+            "type": "string",
+            "title": "Complainant Type"
+          },
+          "date_received": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date Received"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "assigned_bureau_id": {
+            "type": "integer",
+            "title": "Assigned Bureau Id"
+          },
+          "assigned_officer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Officer Id"
+          },
+          "last_action": {
+            "type": "string",
+            "title": "Last Action"
+          },
+          "next_action": {
+            "type": "string",
+            "title": "Next Action"
+          },
+          "last_action_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Action Date"
+          },
+          "expected_disposal_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expected Disposal Date"
+          },
+          "priority": {
+            "type": "string",
+            "title": "Priority"
+          },
+          "is_overdue": {
+            "type": "boolean",
+            "title": "Is Overdue"
+          },
+          "is_escalated": {
+            "type": "boolean",
+            "title": "Is Escalated"
+          },
+          "match_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Confidence"
+          },
+          "needs_institution_review": {
+            "type": "boolean",
+            "title": "Needs Institution Review"
+          },
+          "candidate_institutions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Candidate Institutions"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "assigned_bureau_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Bureau Code"
+          },
+          "institution_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Name"
+          },
+          "action_history": {
+            "items": {
+              "$ref": "#/components/schemas/ActionHistoryResponse"
+            },
+            "type": "array",
+            "title": "Action History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "case_id",
+          "raw_institution_name",
+          "source",
+          "category",
+          "description",
+          "complainant_type",
+          "date_received",
+          "status",
+          "assigned_bureau_id",
+          "last_action",
+          "next_action",
+          "last_action_date",
+          "expected_disposal_date",
+          "priority",
+          "is_overdue",
+          "is_escalated",
+          "needs_institution_review",
+          "created_at"
+        ],
+        "title": "ComplaintResponse",
+        "description": "Full detail view of an AICTE complaint grievance record."
+      },
+      "ComplaintTransferRequest": {
+        "properties": {
+          "target_bureau_id": {
+            "type": "integer",
+            "title": "Target Bureau Id",
+            "description": "ID of destination bureau"
+          },
+          "remarks": {
+            "type": "string",
+            "title": "Remarks",
+            "description": "Transfer justification for audit history"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_bureau_id",
+          "remarks"
+        ],
+        "title": "ComplaintTransferRequest",
+        "description": "Payload to transfer a complaint to another bureau."
+      },
+      "ComplaintUpdate": {
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "assigned_officer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Officer Id"
+          },
+          "remarks": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remarks"
+          },
+          "last_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Action"
+          },
+          "next_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Action"
+          }
+        },
+        "type": "object",
+        "title": "ComplaintUpdate",
+        "description": "Payload for officer status or assignment updates."
+      },
+      "ConfirmInstitutionRequest": {
+        "properties": {
+          "institution_id": {
+            "type": "integer",
+            "title": "Institution Id",
+            "description": "Canonical institution ID chosen by officer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_id"
+        ],
+        "title": "ConfirmInstitutionRequest",
+        "description": "Payload to confirm candidate institution match during human review."
+      },
+      "DashboardSummary": {
+        "properties": {
+          "total_complaints": {
+            "type": "integer",
+            "title": "Total Complaints"
+          },
+          "pending_complaints": {
+            "type": "integer",
+            "title": "Pending Complaints"
+          },
+          "under_process_complaints": {
+            "type": "integer",
+            "title": "Under Process Complaints"
+          },
+          "escalated_complaints": {
+            "type": "integer",
+            "title": "Escalated Complaints"
+          },
+          "transferred_complaints": {
+            "type": "integer",
+            "title": "Transferred Complaints"
+          },
+          "disposed_complaints": {
+            "type": "integer",
+            "title": "Disposed Complaints"
+          },
+          "overdue_complaints": {
+            "type": "integer",
+            "title": "Overdue Complaints"
+          },
+          "active_overlaps": {
+            "type": "integer",
+            "title": "Active Overlaps"
+          },
+          "high_risk_institutions": {
+            "type": "integer",
+            "title": "High Risk Institutions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_complaints",
+          "pending_complaints",
+          "under_process_complaints",
+          "escalated_complaints",
+          "transferred_complaints",
+          "disposed_complaints",
+          "overdue_complaints",
+          "active_overlaps",
+          "high_risk_institutions"
+        ],
+        "title": "DashboardSummary",
+        "description": "High-level KPI statistics for AICTE leadership and bureau officers."
+      },
+      "ExtractRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Unstructured grievance text entered by citizen/student"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ExtractRequest",
+        "description": "Raw grievance text submitted for automated concept extraction."
+      },
+      "ExtractResponse": {
+        "properties": {
+          "extracted_institution_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extracted Institution Name"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "pincode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pincode"
+          },
+          "permanent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permanent Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": "Other"
+          },
+          "priority": {
+            "type": "string",
+            "title": "Priority",
+            "default": "Medium"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "default": 0.85
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "default": "keyword_concept_extractor"
+          }
+        },
+        "type": "object",
+        "title": "ExtractResponse",
+        "description": "Structured extraction output from raw grievance narrative."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InstitutionLeaderboardItem": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "permanent_id": {
+            "type": "string",
+            "title": "Permanent Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "risk_score": {
+            "type": "number",
+            "title": "Risk Score"
+          },
+          "risk_band": {
+            "type": "string",
+            "title": "Risk Band"
+          },
+          "open_complaints": {
+            "type": "integer",
+            "title": "Open Complaints"
+          },
+          "total_complaints": {
+            "type": "integer",
+            "title": "Total Complaints"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "id",
+          "permanent_id",
+          "name",
+          "city",
+          "state",
+          "risk_score",
+          "risk_band",
+          "open_complaints",
+          "total_complaints"
+        ],
+        "title": "InstitutionLeaderboardItem",
+        "description": "Entry on the dynamic Institutional Risk Leaderboard."
+      },
+      "InstitutionResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "permanent_id": {
+            "type": "string",
+            "title": "Permanent Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "normalized_name": {
+            "type": "string",
+            "title": "Normalized Name"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "pincode": {
+            "type": "string",
+            "title": "Pincode"
+          },
+          "institution_type": {
+            "type": "string",
+            "title": "Institution Type"
+          },
+          "risk_score": {
+            "type": "number",
+            "title": "Risk Score"
+          },
+          "risk_breakdown": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Risk Breakdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "permanent_id",
+          "name",
+          "normalized_name",
+          "address",
+          "city",
+          "state",
+          "region",
+          "pincode",
+          "institution_type",
+          "risk_score"
+        ],
+        "title": "InstitutionResponse",
+        "description": "Canonical Institution Registry record."
+      },
+      "InstitutionSummaryResponse": {
+        "properties": {
+          "institution_id": {
+            "type": "integer",
+            "title": "Institution Id"
+          },
+          "summary_text": {
+            "type": "string",
+            "title": "Summary Text"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "'llm' or 'template_fallback'",
+            "default": "template_fallback"
+          },
+          "generated_from": {
+            "type": "string",
+            "title": "Generated From",
+            "description": "Data provenance note",
+            "default": "Generated from records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_id",
+          "summary_text"
+        ],
+        "title": "InstitutionSummaryResponse",
+        "description": "AI-generated executive summary grounded in database grievance history."
+      },
+      "LivePrecheckRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Raw complaint text entered by citizen/student"
+          },
+          "raw_institution_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Institution Name",
+            "description": "Raw institution name if extracted or provided separately"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "pincode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pincode"
+          },
+          "permanent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permanent Id"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "LivePrecheckRequest",
+        "description": "Real-time intake pre-check query (Scenario 5 Demo).\nRead-only pre-flight analysis; MUST NOT persist rows to database."
+      },
+      "LivePrecheckResponse": {
+        "properties": {
+          "institution_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Id"
+          },
+          "institution_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution Name"
+          },
+          "permanent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permanent Id"
+          },
+          "resolution_confidence": {
+            "type": "number",
+            "title": "Resolution Confidence"
+          },
+          "resolution_status": {
+            "type": "string",
+            "title": "Resolution Status"
+          },
+          "needs_institution_review": {
+            "type": "boolean",
+            "title": "Needs Institution Review"
+          },
+          "candidate_institutions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Candidate Institutions"
+          },
+          "resolution_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Resolution Reasons"
+          },
+          "has_active_overlap": {
+            "type": "boolean",
+            "title": "Has Active Overlap",
+            "default": false
+          },
+          "active_overlaps": {
+            "items": {
+              "$ref": "#/components/schemas/ActiveOverlapAlert"
+            },
+            "type": "array",
+            "title": "Active Overlaps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resolution_confidence",
+          "resolution_status",
+          "needs_institution_review"
+        ],
+        "title": "LivePrecheckResponse",
+        "description": "Real-time intake resolution and pre-check output."
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "description": "Registered AICTE email address"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "Account password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "description": "User credentials for token authentication."
+      },
+      "MonthlyTrendItem": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "received": {
+            "type": "integer",
+            "title": "Received"
+          },
+          "disposed": {
+            "type": "integer",
+            "title": "Disposed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "received",
+          "disposed"
+        ],
+        "title": "MonthlyTrendItem",
+        "description": "Monthly receipt vs disposal timeline."
+      },
+      "OfficerResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "bureau_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bureau Id"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "is_active"
+        ],
+        "title": "OfficerResponse",
+        "description": "Public profile of an authenticated AICTE officer."
+      },
+      "OverlapDecisionRequest": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "rejected",
+              "needs_discussion",
+              "related_only"
+            ],
+            "title": "Decision",
+            "description": "Decision on inter-bureau link"
+          },
+          "final_lead_bureau_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Lead Bureau Id",
+            "description": "Bureau designated as coordination lead"
+          },
+          "remarks": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remarks",
+            "description": "Official decision rationale for audit history"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "OverlapDecisionRequest",
+        "description": "Officer decision payload on a suggested complaint overlap.\nSupports approved, rejected, needs_discussion, and related_only."
+      },
+      "PaginatedAlertResponse": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AlertResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "skip",
+          "limit",
+          "items"
+        ],
+        "title": "PaginatedAlertResponse",
+        "description": "Paginated list of operational alerts with total match count."
+      },
+      "RegionWiseItem": {
+        "properties": {
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "complaint_count": {
+            "type": "integer",
+            "title": "Complaint Count"
+          },
+          "high_risk_institutions": {
+            "type": "integer",
+            "title": "High Risk Institutions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "region",
+          "complaint_count",
+          "high_risk_institutions"
+        ],
+        "title": "RegionWiseItem",
+        "description": "Grievance volume and risk across geographic regions."
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "officer": {
+            "$ref": "#/components/schemas/OfficerResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "officer"
+        ],
+        "title": "TokenResponse",
+        "description": "Bearer token response upon successful login."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "OAuth2PasswordBearer": {
+        "type": "oauth2",
+        "flows": {
+          "password": {
+            "scopes": {},
+            "tokenUrl": "/auth/token"
+          }
+        }
+      }
+    }
+  }
+}

@@ -54,3 +54,4 @@ class InstitutionSummaryResponse(BaseModel):
     institution_id: int
     summary_text: str
     source: str = Field(default="template_fallback", description="'llm' or 'template_fallback'")
+    generated_from: str = Field(default="Generated from records", description="Data provenance note")

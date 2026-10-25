@@ -10,8 +10,9 @@ class DashboardSummary(BaseModel):
     total_complaints: int
     pending_complaints: int
     under_process_complaints: int
-    disposed_complaints: int
     escalated_complaints: int
+    transferred_complaints: int
+    disposed_complaints: int
     overdue_complaints: int
     active_overlaps: int
     high_risk_institutions: int

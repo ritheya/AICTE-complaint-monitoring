@@ -219,6 +219,26 @@ class ComplaintOverlapEngine:
                 reasons=["Gate Failed: One or both cases are already Disposed or Transferred"]
             )
 
+        # --- GATING CONDITION 4: Prior Rejected Overlap Decision (Never Re-Suggest) ---
+        if db and complaint_a.id and complaint_b.id:
+            from backend.app.models.case_link import CaseLink
+            ca_id, cb_id = (complaint_a.id, complaint_b.id) if complaint_a.id < complaint_b.id else (complaint_b.id, complaint_a.id)
+            existing_rejected = db.query(CaseLink).filter(
+                CaseLink.case_a_id == ca_id,
+                CaseLink.case_b_id == cb_id,
+                CaseLink.status == "rejected"
+            ).first()
+            if existing_rejected:
+                return OverlapResult(
+                    is_overlap=False,
+                    score=0.0,
+                    band="GATED_OUT",
+                    gated_out=True,
+                    gate_reason="Prior officer adjudication rejected overlap linkage between these cases (never re-suggest)",
+                    signals={"text": 0.0, "category": 0.0, "date": 0.0},
+                    reasons=["Gate Failed: Prior officer adjudication rejected overlap linkage between these cases (never re-suggest)"]
+                )
+
         # Gating Passed
         inst_name = complaint_a.institution.name if complaint_a.institution else "Institution"
         reasons.append(f"Gating Passed: Both cases active across distinct bureaus at '{inst_name}'")

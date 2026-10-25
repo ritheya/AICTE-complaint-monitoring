@@ -219,5 +219,6 @@ def get_institution_executive_summary(
     return InstitutionSummaryResponse(
         institution_id=inst.id,
         summary_text=summary_text,
-        source="template_fallback"
+        source="template_fallback",
+        generated_from="Generated from records"
     )
